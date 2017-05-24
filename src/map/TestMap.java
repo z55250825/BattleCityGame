@@ -1,7 +1,6 @@
 package map;
 
 import java.awt.*;
-
 import java.awt.event.*;
 import java.io.*;
 import java.util.*;
@@ -47,10 +46,9 @@ class Tank extends Thread {
 	 * M:the map M
 	 */
 	int valid, x, y, id, dir, num, speed;
-	final static int MAXSTEP=400;
+	final static int MAXSTEP=200;
 	int randomStep=MAXSTEP;
 	int nowStep=-1;
-	
 	Map M;
 	
 	/*
@@ -58,15 +56,11 @@ class Tank extends Thread {
 	 * AI's shortest path to the HQ
 	 */
 	Vector<Path>pathRecord=new Vector<Path>();
-	
 	/*
 	 *  dx,dy: tank's moving vector in 4 directions
 	 */
-	
 	int[] dx,dy;
-
 	Tank(){}
-	
 	Tank(int x,int y,int id,int dir,Map M,int num,int speed){
 		valid = 1;
 		this.x = x;
@@ -79,13 +73,12 @@ class Tank extends Thread {
 		dx=new int[]{0,0,-speed,speed};
 		dy=new int[]{-speed,speed,0,0};
 	}
-	
 	public void run() {
 		if (num>10)
 		{
 			while(! M.bStop){
 				try{
-					sleep(TestMap.freshTime*4);
+					sleep(TestMap.freshTime*5);
 				}catch(InterruptedException e){
 					System.out.println(e);
 				}
@@ -93,9 +86,10 @@ class Tank extends Thread {
 			}
 		}
 		else
+		{
 			while (! M.bStop);
+		}
 	}
-	
 	/*
 	 * keyBoard Code to Number
 	 */
@@ -179,7 +173,7 @@ class Tank extends Thread {
 			{
 				pathRecord.clear();
 				nowStep=-1;
-				randomStep=30;
+				randomStep=10;
 				return;
 			}
 			/*
@@ -241,26 +235,28 @@ class Tank extends Thread {
 		{
 			if (suddenTurnDirection()){randomStep--;return;}
 			if (changeState(dir));
-			else
-			{
-				Vector<Integer> move = new Vector<Integer>();
-				for(int i=0;i<4;i++)
-				{
-					int new_x=x+dx[i];
-					int new_y=y+dy[i];
-					if(!out(new_x,new_y)&&canGoTo(new_x,new_y))
-							move.add(i);
-				}
-				if (move.size()>1)move.removeElement(dir^1);
-				if (move.isEmpty());
-				else
-				{
-					int t = (int) (Math.random()*move.size());
-					int u = move.elementAt(t);
-					changeState(u);
-				}
-			}
+				else randomSelectDirection();
 			randomStep--;
+		}
+	}
+	
+	void randomSelectDirection()
+	{
+		Vector<Integer> move = new Vector<Integer>();
+		for(int i=0;i<4;i++)
+		{
+			int new_x=x+dx[i];
+			int new_y=y+dy[i];
+			if(!out(new_x,new_y)&&canGoTo(new_x,new_y))
+					move.add(i);
+		}
+		if (move.size()>1)move.removeElement(dir^1);
+		if (move.isEmpty());
+		else
+		{
+			int t = (int) (Math.random()*move.size());
+			int u = move.elementAt(t);
+			changeState(u);
 		}
 	}
 	
@@ -285,7 +281,7 @@ class Tank extends Thread {
 	{
 		double suddenTurnDir_a=Math.random();
 		double suddenTurnDir_b=Math.random();
-		if (Math.abs(suddenTurnDir_a-suddenTurnDir_b)<=0.001)
+		if (Math.abs(suddenTurnDir_a-suddenTurnDir_b)<=0.01)
 		{
 			changeState((dir+1)%4);
 			return true;
@@ -321,8 +317,11 @@ class Tank extends Thread {
 	/*
 	 * shoot bullets
 	 */
-	void shoot()
-	{
+	void shoot(){
+		Bullet b=new Bullet(this,M);
+	    Thread th = new Thread(b);
+	    th.start();
+		M.BulletLst.add(b);
 	}
 	
 	/*
@@ -393,6 +392,7 @@ class Tank extends Thread {
 	 */
 	boolean overlap(int t,int x,int y){
 		for(Tank tank : M.TankLst){
+		  if(tank.valid==1)
 			if(tank.num != t && (Math.abs(tank.x-x)<45 && Math.abs(tank.y-y)<45))
 				return true;
 		}
@@ -423,10 +423,216 @@ class Tank extends Thread {
 }
 
 class Bullet extends Thread {
-	int valid, x, y;
+	/*
+	 * valid: is Bullet hit target or out of map?
+	 * 
+	 * x,y: Bullet's position
+	 * 
+	 * M:map
+	 * 
+	 * flag:to judge the shooter of the Bullet
+	 * flag=0 player flag=1 AI
+	 */
+	int valid, x, y, dir;
+	Map M;
+	int flag;
+	
+	/*
+	 * used for initializing the beginning position
+	 * of the bullet
+	 */
+	int initx[]={20,20,0,40};
+	int inity[]={0,40,20,20};
 	Bullet(){}
+	Bullet(Tank t,Map M){
+		valid=1;
+		this.dir=t.dir;
+		this.x=t.x+initx[t.dir];
+		this.y=t.y+inity[t.dir];
+		this.M=M;
+		if (t.num>10) this.flag=1;
+		else this.flag=0;
+	}
 	public void run() {
-		
+		while(! M.bStop){
+			try{
+				sleep(TestMap.freshTime);
+			}catch(InterruptedException e){
+				System.out.println(e);
+			}
+			//0���ϡ�1���¡�2����3���ҡ�4����
+			//System.out.println("Bullet Thread Constructed");
+			int dx[] = {0,0,-8,8},dy[] = {-8,8,0,0};
+			if(valid==1 && canGoTo(x+dx[dir],y+dy[dir])==true){
+				x += dx[dir];
+				y += dy[dir];
+			}
+			int tmpBullet=getBulletInfo(x,y);
+			int a[]={0,0,0,0};//��ȡ��Χ4�����ӵ�����
+			for (int i=0;i<4;i++)
+			{
+				a[i]=tmpBullet%100;
+				tmpBullet/=100;
+			}
+			if (x<10 || y<30 || x>530 || y>550) valid=0;
+			if (dir==0)//����
+			{
+				if (a[0]==0 && a[1]==0);
+				else if (a[0]==0 && ((a[1]==10 && flag==0) || (a[1]>10 && flag==1)));
+				else if (((a[0]==10 && flag==0) || (a[0]>10 && flag==1)) && a[1]==0);
+				else if (((a[1]==10 && flag==0) || (a[1]>10 && flag==1)) 
+						&& ((a[0]==10 && flag==0) || (a[0]>10 && flag==1)));//���г�ͨ��������
+				else//���ܳ�ͨ���裬���ߡ�
+				{
+					int i1=(int)Math.floor(1.0*(y-11-30)/20);
+					int j1=(int)Math.floor(1.0*(x-11-10)/20);
+					int i2=(int)Math.floor(1.0*(y-11-30)/20);
+					int j2=(int)Math.floor(1.0*(x+11-10)/20);
+					M.clearMap(i1, j1);
+					M.clearMap(i2, j2);
+					for (int j=0;j<=1;j++)
+					{
+						if (a[j]>=10)//��̹��
+						{
+							for (Tank t : M.TankLst) 
+								if (t.num==a[j]) t.valid = 0;
+						}
+					}
+					valid=0;
+				}
+			}
+			
+			if (dir==1)//����
+			{
+				if (a[2]==0 && a[3]==0);
+				else if (a[2]==0 && ((a[3]==10 && flag==0) || (a[3]>10 && flag==1)));
+				else if (((a[2]==10 && flag==0) || (a[2]>10 && flag==1)) && a[3]==0);
+				else if (((a[3]==10 && flag==0) || (a[3]>10 && flag==1)) 
+						&& ((a[2]==10 && flag==0) || (a[2]>10 && flag==1)));//���г�ͨ��������
+				else//���ܳ�ͨ���裬���ߡ�
+				{
+					int i1=(int)Math.floor(1.0*(y+11-30)/20);
+					int j1=(int)Math.floor(1.0*(x-11-10)/20);
+					int i2=(int)Math.floor(1.0*(y+11-30)/20);
+					int j2=(int)Math.floor(1.0*(x+11-10)/20);
+					M.clearMap(i1, j1);
+					M.clearMap(i2, j2);
+					
+					for (int j=2;j<=3;j++)
+					{
+						if (a[j]>=10)//��̹��
+						{
+							for (Tank t : M.TankLst) 
+								if (t.num==a[j]) t.valid = 0;
+						}
+					}
+					valid=0;
+				}
+			}
+			
+			if (dir==2)//����
+			{
+				if (a[1]==0 && a[2]==0);
+				else if (a[1]==0 && ((a[2]==10 && flag==0) || (a[2]>10 && flag==1)));
+				else if (((a[1]==10 && flag==0) || (a[1]>10 && flag==1)) && a[2]==0);
+				else if (((a[2]==10 && flag==0) || (a[2]>10 && flag==1)) 
+						&& ((a[1]==10 && flag==0) || (a[1]>10 && flag==1)));//���г�ͨ��������
+				else//���ܳ�ͨ���裬���ߡ�
+				{
+					int i1=(int)Math.floor(1.0*(y-11-30)/20);
+					int j1=(int)Math.floor(1.0*(x+11-10)/20);
+					int i2=(int)Math.floor(1.0*(y+11-30)/20);
+					int j2=(int)Math.floor(1.0*(x+11-10)/20);
+					M.clearMap(i1, j1);
+					M.clearMap(i2, j2);
+					
+					for (int j=1;j<=2;j++)
+					{
+						if (a[j]>=10)//��̹��
+						{
+							for (Tank t : M.TankLst) 
+								if (t.num==a[j]) t.valid = 0;
+						}
+					}
+					valid=0;
+				}
+			}
+			if (dir==3)//����
+			{
+				if (a[1]==0 && a[3]==0);
+				else if (a[1]==0 && ((a[3]==10 && flag==0) || (a[3]>10 && flag==1)));
+				else if (((a[1]==10 && flag==0) || (a[1]>10 && flag==1)) && a[3]==0);
+				else if (((a[3]==10 && flag==0) || (a[3]>10 && flag==1)) 
+						&& ((a[1]==10 && flag==0) || (a[1]>10 && flag==1)));//���г�ͨ��������
+				else//���ܳ�ͨ���裬���ߡ�
+				{
+					int i1=(int)Math.floor(1.0*(y-11-30)/20);
+					int j1=(int)Math.floor(1.0*(x-11-10)/20);
+					int i2=(int)Math.floor(1.0*(y+11-30)/20);
+					int j2=(int)Math.floor(1.0*(x-11-10)/20);
+					M.clearMap(i1, j1);
+					M.clearMap(i2, j2);
+					
+					if (a[1]>=10)//��̹��
+					{
+						for (Tank t : M.TankLst) 
+							if (t.num==a[0]) t.valid = 0;
+					}
+					if (a[3]>=10)//��̹��
+					{
+						for (Tank t : M.TankLst) 
+							if (t.num==a[3]) t.valid = 0;
+					}
+					valid=0;
+				}
+			}
+		}
+	}
+	boolean canGoTo(int x,int y){
+		int new_x1,new_y1,new_x2,new_y2;
+		new_x1 = (int)Math.ceil(1.0*(x-10)/20);
+		new_x2 = (int)Math.floor(1.0*(x-10)/20);
+		new_y1 = (int)Math.ceil(1.0*(y-30)/20);
+		new_y2 = (int)Math.floor(1.0*(y-30)/20);
+		if(new_x1>=0&&new_x1+1<26&&new_y1>=0&&new_y1+1<26 &&
+				new_x2>=0&&new_x2+1<26&&new_y2>=0&&new_y2+1<26){
+			if(M.map[new_y2][new_x2] == 2) return false;
+		}
+		return true;
+	}
+	int getMapInfo(int x,int y){
+		int new_x1,new_y1,new_x2,new_y2;
+		new_x1 = (int)Math.ceil(1.0*(x-10)/20);
+		new_x2 = (int)Math.floor(1.0*(x-10)/20);
+		new_y1 = (int)Math.ceil(1.0*(y-30)/20);
+		new_y2 = (int)Math.floor(1.0*(y-30)/20);
+		if(new_x1>=0&&new_x1+1<26&&new_y1>=0&&new_y1+1<26 &&
+				new_x2>=0&&new_x2+1<26&&new_y2>=0&&new_y2+1<26){
+			if(M.map[new_y2][new_x2] == 2) return 2;//����
+			if(M.map[new_y2][new_x2] == 1) return 1;//ľ��
+			if(M.map[new_y2][new_x2] == 0)//�ײ��ǿյ�
+			{
+				if (new_y2>=24 && new_x2>=12 && new_x2<=13) return 3;//Home
+				else
+					for(Tank t : M.TankLst){ //[t.x,t.x+40]  [t.y,t.y+40]
+						if (x+2>=t.x && x-2<=t.x+40 && y+2>=t.y && y-2<=t.y+40) return t.num;//�˴�̹��
+					}
+				return 0;
+			}
+		}
+		return 6;
+	}
+	int getBulletInfo(int x,int y)
+	{
+		int a[]={0,0,0,0};
+		int dx[]={-11,11,11,-11};
+		int dy[]={-11,-11,11,11};
+		for (int i=0;i<4;i++)
+		{
+			a[i]=getMapInfo(x+dx[i],y+dy[i]);
+		}
+		int res=a[0]*1+a[1]*100+a[2]*10000+a[3]*1000000;
+		return res;
 	}
 }
 
@@ -440,24 +646,52 @@ class Map extends Frame{
 	Vector<Tank> TankLst = new Vector<Tank>();
 	Vector<Bullet> BulletLst = new Vector<Bullet>();
 	MainThread thread;
-	int LeftTank = 1;
+	int LeftTank = 10;
 	boolean bStop;
 	
 	class MainThread extends Thread {
 		public void run(){
+			int new_tank_time = 5*1000,cnt = 10;
+			Tank my_tank = new Tank(9*20+10,24*20+30,6,0,Map.this,cnt++,5);
+			TankLst.add(my_tank);
+			Thread th = new Thread(my_tank);
+			th.start();
+			newTank(10,30,cnt++);newTank(24*20+10,30,cnt++);newTank(12*20+10,30,cnt++);
 			while(! bStop){
 				repaint();
+				out:if(LeftTank > 0 && new_tank_time == 0){
+					new_tank_time = 5*1000;
+					if(! overlap(10,30)){
+						newTank(10,30,cnt);
+						cnt++;
+						break out;					
+					}
+					if(! overlap(24*20+10,30)){
+						newTank(24*20+10,30,cnt);
+						cnt++;
+						break out;
+					}
+					if(! overlap(12*20+10,30)){
+						newTank(12*20+10,30,cnt);
+						cnt++;
+						break out;
+					}
+				}
 				try{
 					sleep(TestMap.freshTime);
+					new_tank_time -= TestMap.freshTime;
 				}catch(InterruptedException e){
 					System.out.println(e);
 				}
 			}
 		}
 	}
-	Map(){
+	Map(){}
+	Map(int level){
 		try{
-			FileReader in = new FileReader("Map.txt");
+			File f = new File("Maps");
+			File fs[] = f.listFiles();
+			FileReader in = new FileReader(fs[level - 1]);
 			BufferedReader rd = new BufferedReader(in);
 			for(int i=0;i<26;i++){
 				String str[] = rd.readLine().split(" ");
@@ -517,13 +751,13 @@ class Map extends Frame{
 		Image images = icon.getImage();
 		g.drawImage(images, 10+12*20, 30+24*20, 40, 40,this);
 		paintTank(g);
-		//paintBullet(g);
+		paintBullet(g);
 		//print();
 	}
 	void paintTank(Graphics g){
 		String path = "pictures";
 		for(Tank t : TankLst){
-			//System.out.println(t.id + " " + t.x + " " + t.y);
+			if(t.valid == 0) continue;
 			String dir = path + "/" + t.id + t.dir + ".gif";
 			ImageIcon icon = new ImageIcon(dir);
 			Image images = icon.getImage();
@@ -531,17 +765,20 @@ class Map extends Frame{
 		}
 		//System.out.println();
 	}
-	/*void paintBullet(Graphics g){
+	void paintBullet(Graphics g){
+		String path = "pictures";
 		for(Bullet b : BulletLst){
-			
+			if (b.valid == 0) continue;
+			String dir = path + "/" + "bullet.jpg";
+			ImageIcon icon = new ImageIcon(dir);
+			Image images = icon.getImage();
+			g.drawImage(images,b.x, b.y, 5, 5, this);
 		}
-	}*/
+	}
 	synchronized int getMapNum(int i,int j){
 		return map[i][j]+map[i+1][j]+map[i][j+1]+map[i+1][j+1];
 	}
-	synchronized void setMapNum(int i,int j,int t){
-		map[i][j] = map[i+1][j] = map[i][j+1] = map[i+1][j+1] = t;
-	}
+
 	void print(){
 		for(int i=0;i<26;i++){
 			for(int j=0;j<26;j++)
@@ -604,7 +841,7 @@ class Map extends Frame{
 		if (y<0||y>=25)return true;
 		return false;
 	}
-	
+
 	/*
 	 * map[x][y] is a reachable area?
 	 */
@@ -624,27 +861,39 @@ class Map extends Frame{
 		if (y==21&&x==12)return true;
 		return false;
 	}
+	boolean overlap(int x,int y)
+	{
+		for(Tank tank : TankLst){
+			if(Math.abs(tank.x-x)<45 && Math.abs(tank.y-y)<45)
+				return true;
+		}
+		return false;
+	}
+	void newTank(int x,int y, int cnt)
+	{
+		Tank new_tank = new Tank(x,y,7,1,this,cnt,5);
+		TankLst.add(new_tank);
+		Thread new_th = new Thread(new_tank);
+		new_th.start();
+		LeftTank--;
+	}
+	void clearMap(int i,int j)
+	{
+		if(map[i][j] == 1)
+			map[i][j] = 0;
+		else if(map[i][j] == 2);
+		else if(map[i][j] == 5)
+			gameOver();
+	}
+	void gameOver()
+	{
+		bStop = true;
+	}
 }
 
 public class TestMap {
-	final static int freshTime=20;
+	final static int freshTime=50;
 	public static void main(String[] args) {
-		Map M = new Map();
-		Thread th[] = new Thread[6];
-		Tank tank[] = new Tank[6];
-		tank[0] = new Tank(10+9*20,30+24*20,6,0,M,10,10);
-		M.TankLst.add(tank[0]);
-		int t = 0;
-		th[t] = new Thread(tank[t]);
-		th[t].start();
-		t++;
-		while(M.LeftTank > 0){
-			M.LeftTank--;
-			t++;
-			tank[t] = new Tank(10+4*20,30,7,1,M,t+10,5);
-			M.TankLst.add(tank[t]);
-			th[t] = new Thread(tank[t]);
-			th[t].start();
-		}
+		Map M = new Map(1);
 	}
 }
