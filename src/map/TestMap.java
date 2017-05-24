@@ -5,14 +5,10 @@ import java.awt.event.*;
 import java.io.*;
 import java.util.*;
 import javax.swing.*;
-//x 10~530
-//y 30~550
 
 /*
- * Path Class:
- * used for Saving Path from
- * some positions to the HQ
- * 
+ * Path Class:used for Saving Path 
+ * from some positions to the HQ
  */
 class Path
 {
@@ -420,174 +416,193 @@ class Tank extends Thread {
 		if (x>Targetx)return 2;
 		return -1;
 	}
+	
+	void dieStatusChange()
+	{
+		valid=0;
+	}
+	
 }
 
 class Bullet extends Thread {
-	/*
-	 * valid: is Bullet hit target or out of map?
-	 * 
-	 * x,y: Bullet's position
-	 * 
-	 * M:map
-	 * 
-	 * flag:to judge the shooter of the Bullet
-	 * flag=0 player flag=1 AI
-	 */
 	int valid, x, y, dir;
 	Map M;
-	int flag;
-	
-	/*
-	 * used for initializing the beginning position
-	 * of the bullet
-	 */
+	int flag;//0代表己方，1代表敌方。
 	int initx[]={20,20,0,40};
 	int inity[]={0,40,20,20};
-	Bullet(){}
-	Bullet(Tank t,Map M){
+	Bullet(){
+		valid=0;x=-1;y=-1;
+		dir=0;flag=0;
+	}
+	Bullet(int x,int y, int dir, Map M, int num){
+		valid=1;
+		this.dir=dir;
+		this.x=x+initx[dir];
+		this.y=y+inity[dir];
+		this.M=M;
+		if (num>10) this.flag=1;
+		else this.flag=0;
+	}
+	Bullet(Tank t,Map M)
+	{
 		valid=1;
 		this.dir=t.dir;
-		this.x=t.x+initx[t.dir];
-		this.y=t.y+inity[t.dir];
+		this.x=t.x+initx[dir];
+		this.y=t.y+inity[dir];
 		this.M=M;
 		if (t.num>10) this.flag=1;
 		else this.flag=0;
 	}
 	public void run() {
 		while(! M.bStop){
+			if (valid==0) return;
 			try{
 				sleep(TestMap.freshTime);
 			}catch(InterruptedException e){
 				System.out.println(e);
 			}
-			//0���ϡ�1���¡�2����3���ҡ�4����
-			//System.out.println("Bullet Thread Constructed");
+			//0向上、1向下、2向左、3向右、4不动
 			int dx[] = {0,0,-8,8},dy[] = {-8,8,0,0};
 			if(valid==1 && canGoTo(x+dx[dir],y+dy[dir])==true){
 				x += dx[dir];
 				y += dy[dir];
 			}
-			int tmpBullet=getBulletInfo(x,y);
-			int a[]={0,0,0,0};//��ȡ��Χ4�����ӵ�����
-			for (int i=0;i<4;i++)
+			
+			if (dir==0)
 			{
-				a[i]=tmpBullet%100;
-				tmpBullet/=100;
+				int j=(int)Math.floor(1.0*(x-5-10)/20.0);
+				int i=(int)Math.floor(1.0*(y-30)/20.0);
+				i=check(i);j=check(j);
+				if (M.map[i][j]>0 || M.map[i][j+1]>0) valid=0;//打到建筑物
+				
+				for (Tank t:M.TankLst)
+				{
+					if (t.valid==1)
+					{
+						if (10+20*(j+1)>=t.x && t.x+40>=10+20*j && 10+20*(i+1)>=t.y && t.y+40>=10+20*i)
+						{
+							if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
+							{
+								t.dieStatusChange();valid=0;
+							}
+						}
+						if (10+20*(j+2)>=t.x && t.x+40>=10+20*(j+1) && 10+20*(i+1)>=t.y && t.y+40>=10+20*i)
+						{
+							if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
+							{
+								t.dieStatusChange();valid=0;
+							}
+						}
+					}
+				}
+				M.clear(i, j);
+				M.clear(i, j+1);
 			}
+			if (dir==1)
+			{
+				int j=(int)Math.floor(1.0*(x-5-10)/20.0);
+				int i=(int)Math.floor(1.0*(y-30)/20.0);
+				i=check(i);j=check(j);
+				if (M.map[i][j]>0 || M.map[i][j+1]>0) valid=0;//打到建筑物
+				
+				for (Tank t:M.TankLst)
+				{
+					if (t.valid==1)
+					{
+						if (10+20*(j+1)>=t.x && t.x+40>=10+20*j && 10+20*(i+1)>=t.y && t.y+40>=10+20*i)
+						{
+							if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
+							{
+								t.dieStatusChange();valid=0;
+							}
+						}
+						if (10+20*(j+2)>=t.x && t.x+40>=10+20*(j+1) && 10+20*(i+1)>=t.y && t.y+40>=10+20*i)
+						{
+							if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
+							{
+								t.dieStatusChange();valid=0;
+							}
+						}
+					}
+				}
+				
+				M.clear(i, j);
+				M.clear(i, j+1);
+			}
+			if (dir==2)
+			{
+				int j=(int)Math.floor(1.0*(x-10)/20.0);
+				int i=(int)Math.floor(1.0*(y-5-30)/20.0);
+				i=check(i);j=check(j);
+				if (M.map[i][j]>0 || M.map[i+1][j]>0) valid=0;//打到建筑物
+				
+				for (Tank t:M.TankLst)
+				{
+					if (t.valid==1)
+					{
+						if (10+20*(j+1)>=t.x && t.x+40>=10+20*j && 10+20*(i+1)>=t.y && t.y+40>=10+20*i)
+						{
+							if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
+							{
+								t.dieStatusChange();valid=0;
+							}
+						}
+						if (10+20*(j+2)>=t.x && t.x+40>=10+20*(j+1) && 10+20*(i+1)>=t.y && t.y+40>=10+20*i)
+						{
+							if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
+							{
+								t.dieStatusChange();valid=0;
+							}
+						}
+					}
+				}
+				
+				M.clear(i, j);
+				M.clear(i+1, j);
+			}
+			if (dir==3)
+			{
+				int j=(int)Math.floor(1.0*(x-10)/20.0);
+				int i=(int)Math.floor(1.0*(y-5-30)/20.0);
+				i=check(i);j=check(j);
+				if (M.map[i][j]>0 || M.map[i+1][j]>0) valid=0;//打到建筑物
+				
+				for (Tank t:M.TankLst)
+				{
+					if (t.valid==1)
+					{
+						if (10+20*(j+1)>=t.x && t.x+40>=10+20*j && 10+20*(i+1)>=t.y && t.y+40>=10+20*i)
+						{
+							if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
+							{
+								t.dieStatusChange();valid=0;
+							}
+						}
+						if (10+20*(j+2)>=t.x && t.x+40>=10+20*(j+1) && 10+20*(i+1)>=t.y && t.y+40>=10+20*i)
+						{
+							if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
+							{
+								t.dieStatusChange();valid=0;
+							}
+						}
+					}
+				}
+				M.clear(i, j);
+				M.clear(i+1, j);
+			}
+			//判断是否打到任何东西
 			if (x<10 || y<30 || x>530 || y>550) valid=0;
-			if (dir==0)//����
-			{
-				if (a[0]==0 && a[1]==0);
-				else if (a[0]==0 && ((a[1]==10 && flag==0) || (a[1]>10 && flag==1)));
-				else if (((a[0]==10 && flag==0) || (a[0]>10 && flag==1)) && a[1]==0);
-				else if (((a[1]==10 && flag==0) || (a[1]>10 && flag==1)) 
-						&& ((a[0]==10 && flag==0) || (a[0]>10 && flag==1)));//���г�ͨ��������
-				else//���ܳ�ͨ���裬���ߡ�
-				{
-					int i1=(int)Math.floor(1.0*(y-11-30)/20);
-					int j1=(int)Math.floor(1.0*(x-11-10)/20);
-					int i2=(int)Math.floor(1.0*(y-11-30)/20);
-					int j2=(int)Math.floor(1.0*(x+11-10)/20);
-					M.clearMap(i1, j1);
-					M.clearMap(i2, j2);
-					for (int j=0;j<=1;j++)
-					{
-						if (a[j]>=10)//��̹��
-						{
-							for (Tank t : M.TankLst) 
-								if (t.num==a[j]) t.valid = 0;
-						}
-					}
-					valid=0;
-				}
-			}
-			
-			if (dir==1)//����
-			{
-				if (a[2]==0 && a[3]==0);
-				else if (a[2]==0 && ((a[3]==10 && flag==0) || (a[3]>10 && flag==1)));
-				else if (((a[2]==10 && flag==0) || (a[2]>10 && flag==1)) && a[3]==0);
-				else if (((a[3]==10 && flag==0) || (a[3]>10 && flag==1)) 
-						&& ((a[2]==10 && flag==0) || (a[2]>10 && flag==1)));//���г�ͨ��������
-				else//���ܳ�ͨ���裬���ߡ�
-				{
-					int i1=(int)Math.floor(1.0*(y+11-30)/20);
-					int j1=(int)Math.floor(1.0*(x-11-10)/20);
-					int i2=(int)Math.floor(1.0*(y+11-30)/20);
-					int j2=(int)Math.floor(1.0*(x+11-10)/20);
-					M.clearMap(i1, j1);
-					M.clearMap(i2, j2);
-					
-					for (int j=2;j<=3;j++)
-					{
-						if (a[j]>=10)//��̹��
-						{
-							for (Tank t : M.TankLst) 
-								if (t.num==a[j]) t.valid = 0;
-						}
-					}
-					valid=0;
-				}
-			}
-			
-			if (dir==2)//����
-			{
-				if (a[1]==0 && a[2]==0);
-				else if (a[1]==0 && ((a[2]==10 && flag==0) || (a[2]>10 && flag==1)));
-				else if (((a[1]==10 && flag==0) || (a[1]>10 && flag==1)) && a[2]==0);
-				else if (((a[2]==10 && flag==0) || (a[2]>10 && flag==1)) 
-						&& ((a[1]==10 && flag==0) || (a[1]>10 && flag==1)));//���г�ͨ��������
-				else//���ܳ�ͨ���裬���ߡ�
-				{
-					int i1=(int)Math.floor(1.0*(y-11-30)/20);
-					int j1=(int)Math.floor(1.0*(x+11-10)/20);
-					int i2=(int)Math.floor(1.0*(y+11-30)/20);
-					int j2=(int)Math.floor(1.0*(x+11-10)/20);
-					M.clearMap(i1, j1);
-					M.clearMap(i2, j2);
-					
-					for (int j=1;j<=2;j++)
-					{
-						if (a[j]>=10)//��̹��
-						{
-							for (Tank t : M.TankLst) 
-								if (t.num==a[j]) t.valid = 0;
-						}
-					}
-					valid=0;
-				}
-			}
-			if (dir==3)//����
-			{
-				if (a[1]==0 && a[3]==0);
-				else if (a[1]==0 && ((a[3]==10 && flag==0) || (a[3]>10 && flag==1)));
-				else if (((a[1]==10 && flag==0) || (a[1]>10 && flag==1)) && a[3]==0);
-				else if (((a[3]==10 && flag==0) || (a[3]>10 && flag==1)) 
-						&& ((a[1]==10 && flag==0) || (a[1]>10 && flag==1)));//���г�ͨ��������
-				else//���ܳ�ͨ���裬���ߡ�
-				{
-					int i1=(int)Math.floor(1.0*(y-11-30)/20);
-					int j1=(int)Math.floor(1.0*(x-11-10)/20);
-					int i2=(int)Math.floor(1.0*(y+11-30)/20);
-					int j2=(int)Math.floor(1.0*(x-11-10)/20);
-					M.clearMap(i1, j1);
-					M.clearMap(i2, j2);
-					
-					if (a[1]>=10)//��̹��
-					{
-						for (Tank t : M.TankLst) 
-							if (t.num==a[0]) t.valid = 0;
-					}
-					if (a[3]>=10)//��̹��
-					{
-						for (Tank t : M.TankLst) 
-							if (t.num==a[3]) t.valid = 0;
-					}
-					valid=0;
-				}
-			}
 		}
 	}
+	
+	int check(int x)
+	{
+		int res=x;
+		if (x<0) res=0;
+		else if (x>25) res=25;
+		return res;
+	}
+	
 	boolean canGoTo(int x,int y){
 		int new_x1,new_y1,new_x2,new_y2;
 		new_x1 = (int)Math.ceil(1.0*(x-10)/20);
@@ -600,6 +615,7 @@ class Bullet extends Thread {
 		}
 		return true;
 	}
+	
 	int getMapInfo(int x,int y){
 		int new_x1,new_y1,new_x2,new_y2;
 		new_x1 = (int)Math.ceil(1.0*(x-10)/20);
@@ -608,20 +624,21 @@ class Bullet extends Thread {
 		new_y2 = (int)Math.floor(1.0*(y-30)/20);
 		if(new_x1>=0&&new_x1+1<26&&new_y1>=0&&new_y1+1<26 &&
 				new_x2>=0&&new_x2+1<26&&new_y2>=0&&new_y2+1<26){
-			if(M.map[new_y2][new_x2] == 2) return 2;//����
-			if(M.map[new_y2][new_x2] == 1) return 1;//ľ��
-			if(M.map[new_y2][new_x2] == 0)//�ײ��ǿյ�
+			if(M.map[new_y2][new_x2] == 2) return 2;//铁块
+			if(M.map[new_y2][new_x2] == 1) return 1;//木块
+			if(M.map[new_y2][new_x2] == 0)//底部是空地
 			{
 				if (new_y2>=24 && new_x2>=12 && new_x2<=13) return 3;//Home
 				else
 					for(Tank t : M.TankLst){ //[t.x,t.x+40]  [t.y,t.y+40]
-						if (x+2>=t.x && x-2<=t.x+40 && y+2>=t.y && y-2<=t.y+40) return t.num;//�˴�̹��
+						if (x+2>=t.x && x-2<=t.x+40 && y+2>=t.y && y-2<=t.y+40) return t.num;//此处坦克
 					}
 				return 0;
 			}
 		}
 		return 6;
 	}
+	
 	int getBulletInfo(int x,int y)
 	{
 		int a[]={0,0,0,0};
@@ -728,6 +745,7 @@ class Map extends Frame{
 		thread = new MainThread();
 		thread.start();
 	}
+	
 	public void paint(Graphics g){
 		super.paint(g);
 		g.setColor(Color.white);
@@ -765,20 +783,25 @@ class Map extends Frame{
 		}
 		//System.out.println();
 	}
+
 	void paintBullet(Graphics g){
 		String path = "pictures";
 		for(Bullet b : BulletLst){
 			if (b.valid == 0) continue;
-			String dir = path + "/" + "bullet.jpg";
+			String dir = path + "/" + "bullet.jpeg";
 			ImageIcon icon = new ImageIcon(dir);
 			Image images = icon.getImage();
 			g.drawImage(images,b.x, b.y, 5, 5, this);
 		}
 	}
+	
 	synchronized int getMapNum(int i,int j){
 		return map[i][j]+map[i+1][j]+map[i][j+1]+map[i+1][j+1];
 	}
 
+	/*
+	 * print Map information
+	 */
 	void print(){
 		for(int i=0;i<26;i++){
 			for(int j=0;j<26;j++)
@@ -861,6 +884,7 @@ class Map extends Frame{
 		if (y==21&&x==12)return true;
 		return false;
 	}
+	
 	boolean overlap(int x,int y)
 	{
 		for(Tank tank : TankLst){
@@ -869,6 +893,7 @@ class Map extends Frame{
 		}
 		return false;
 	}
+	
 	void newTank(int x,int y, int cnt)
 	{
 		Tank new_tank = new Tank(x,y,7,1,this,cnt,5);
@@ -877,6 +902,7 @@ class Map extends Frame{
 		new_th.start();
 		LeftTank--;
 	}
+	
 	void clearMap(int i,int j)
 	{
 		if(map[i][j] == 1)
@@ -885,6 +911,24 @@ class Map extends Frame{
 		else if(map[i][j] == 5)
 			gameOver();
 	}
+	
+	int check(int x)
+	 {
+		int res=x;
+		if (x<0) res=0;
+		else if (x>25) res=25;
+		return res;
+	 }
+	
+	void clear(int i,int j)
+	 {
+		i=check(i);
+		j=check(j);
+		if(map[i][j] == 1) map[i][j] = 0;
+		else if(map[i][j] == 2) map[i][j] = 2;
+		else if(map[i][j] == 5) gameOver();
+	 }
+	
 	void gameOver()
 	{
 		bStop = true;
