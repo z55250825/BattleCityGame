@@ -39,12 +39,17 @@ class Tank extends Thread {
 	 * 
 	 * nowStep:record the AI's next target position to arrive 
 	 * 
+	 * shootLimit: judge whether the tank can shoot (1 shoot/5 seconds) 
+	 * 
 	 * M:the map M
+	 * 
+	 * 
 	 */
 	int valid, x, y, id, dir, num, speed;
 	final static int MAXSTEP=200;
 	int randomStep=MAXSTEP;
 	int nowStep=-1;
+	boolean shootLimit=false;
 	Map M;
 	
 	/*
@@ -56,8 +61,11 @@ class Tank extends Thread {
 	 *  dx,dy: tank's moving vector in 4 directions
 	 */
 	int[] dx,dy;
+	
 	Tank(){}
-	Tank(int x,int y,int id,int dir,Map M,int num,int speed){
+	
+	Tank(int x,int y,int id,int dir,Map M,int num,int speed)
+	{
 		valid = 1;
 		this.x = x;
 		this.y = y;
@@ -68,11 +76,15 @@ class Tank extends Thread {
 		this.speed = speed;
 		dx=new int[]{0,0,-speed,speed};
 		dy=new int[]{-speed,speed,0,0};
+		this.shootLimit=false;
 	}
-	public void run() {
+	
+	public void run() 
+	{
 		if (num>10)
 		{
-			while(! M.bStop){
+			while((! M.bStop)&&(this.valid>=1))
+			{
 				try{
 					sleep(TestMap.freshTime*5);
 				}catch(InterruptedException e){
@@ -82,9 +94,7 @@ class Tank extends Thread {
 			}
 		}
 		else
-		{
-			while (! M.bStop);
-		}
+			while ((! M.bStop)&&(this.valid>=1));
 	}
 	/*
 	 * keyBoard Code to Number
@@ -313,11 +323,16 @@ class Tank extends Thread {
 	/*
 	 * shoot bullets
 	 */
-	void shoot(){
-		Bullet b=new Bullet(this,M);
-	    Thread th = new Thread(b);
-	    th.start();
-		M.BulletLst.add(b);
+	void shoot()
+	{
+		if (shootLimit==false)
+		{
+			shootLimit=true;
+			Bullet b=new Bullet(this,M);
+			Thread th = new Thread(b);
+			M.BulletLst.add(b);
+			th.start();
+		}
 	}
 	
 	/*
@@ -364,7 +379,8 @@ class Tank extends Thread {
 	/*
 	 * judge whether tank can exist in (x,y) 
 	 */
-	boolean canGoTo(int x,int y){
+	boolean canGoTo(int x,int y)
+	{
 		int new_x1,new_y1,new_x2,new_y2;
 		new_x1 = (int)Math.ceil(1.0*(x-10)/20);
 		new_x2 = (int)Math.floor(1.0*(x-10)/20);
@@ -386,7 +402,8 @@ class Tank extends Thread {
 	/*
 	 * judge whether two tank is not overlapped
 	 */
-	boolean overlap(int t,int x,int y){
+	boolean overlap(int t,int x,int y)
+	{
 		for(Tank tank : M.TankLst){
 		  if(tank.valid==1)
 			if(tank.num != t && (Math.abs(tank.x-x)<45 && Math.abs(tank.y-y)<45))
@@ -427,22 +444,28 @@ class Tank extends Thread {
 class Bullet extends Thread {
 	int valid, x, y, dir;
 	Map M;
+	Tank T;
 	int flag;//0代表己方，1代表敌方。
-	int initx[]={20,20,0,40};
-	int inity[]={0,40,20,20};
-	Bullet(){
-		valid=0;x=-1;y=-1;
-		dir=0;flag=0;
+	
+	final static int initx[]={20,20,0,40};
+	final static int inity[]={0,40,20,20};
+	
+	Bullet()
+	{
+		valid=0;x=-1;y=-1;dir=0;flag=0;
 	}
-	Bullet(int x,int y, int dir, Map M, int num){
+	
+	Bullet(int x,int y, int dir, Map M, int num)
+	{
 		valid=1;
 		this.dir=dir;
 		this.x=x+initx[dir];
 		this.y=y+inity[dir];
 		this.M=M;
 		if (num>10) this.flag=1;
-		else this.flag=0;
+			else this.flag=0;
 	}
+	
 	Bullet(Tank t,Map M)
 	{
 		valid=1;
@@ -450,150 +473,140 @@ class Bullet extends Thread {
 		this.x=t.x+initx[dir];
 		this.y=t.y+inity[dir];
 		this.M=M;
+		this.T=t;
 		if (t.num>10) this.flag=1;
-		else this.flag=0;
+			else this.flag=0;
 	}
+	
 	public void run() {
-		while(! M.bStop){
-			if (valid==0) return;
-			try{
-				sleep(TestMap.freshTime);
-			}catch(InterruptedException e){
-				System.out.println(e);
-			}
-			//0向上、1向下、2向左、3向右、4不动
-			int dx[] = {0,0,-8,8},dy[] = {-8,8,0,0};
-			if(valid==1 && canGoTo(x+dx[dir],y+dy[dir])==true){
-				x += dx[dir];
-				y += dy[dir];
-			}
-			
-			if (dir==0)
-			{
-				int j=(int)Math.floor(1.0*(x-5-10)/20.0);
-				int i=(int)Math.floor(1.0*(y-30)/20.0);
-				i=check(i);j=check(j);
-				if (M.map[i][j]>0 || M.map[i][j+1]>0) valid=0;//打到建筑物
-				
-				for (Tank t:M.TankLst)
-				{
-					if (t.valid==1)
-					{
-						if (10+20*(j+1)>=t.x && t.x+40>=10+20*j && 10+20*(i+1)>=t.y && t.y+40>=10+20*i)
-						{
-							if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
-							{
-								t.dieStatusChange();valid=0;
-							}
-						}
-						if (10+20*(j+2)>=t.x && t.x+40>=10+20*(j+1) && 10+20*(i+1)>=t.y && t.y+40>=10+20*i)
-						{
-							if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
-							{
-								t.dieStatusChange();valid=0;
-							}
-						}
-					}
-				}
-				M.clear(i, j);
-				M.clear(i, j+1);
-			}
-			if (dir==1)
-			{
-				int j=(int)Math.floor(1.0*(x-5-10)/20.0);
-				int i=(int)Math.floor(1.0*(y-30)/20.0);
-				i=check(i);j=check(j);
-				if (M.map[i][j]>0 || M.map[i][j+1]>0) valid=0;//打到建筑物
-				
-				for (Tank t:M.TankLst)
-				{
-					if (t.valid==1)
-					{
-						if (10+20*(j+1)>=t.x && t.x+40>=10+20*j && 10+20*(i+1)>=t.y && t.y+40>=10+20*i)
-						{
-							if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
-							{
-								t.dieStatusChange();valid=0;
-							}
-						}
-						if (10+20*(j+2)>=t.x && t.x+40>=10+20*(j+1) && 10+20*(i+1)>=t.y && t.y+40>=10+20*i)
-						{
-							if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
-							{
-								t.dieStatusChange();valid=0;
-							}
-						}
-					}
-				}
-				
-				M.clear(i, j);
-				M.clear(i, j+1);
-			}
-			if (dir==2)
-			{
-				int j=(int)Math.floor(1.0*(x-10)/20.0);
-				int i=(int)Math.floor(1.0*(y-5-30)/20.0);
-				i=check(i);j=check(j);
-				if (M.map[i][j]>0 || M.map[i+1][j]>0) valid=0;//打到建筑物
-				
-				for (Tank t:M.TankLst)
-				{
-					if (t.valid==1)
-					{
-						if (10+20*(j+1)>=t.x && t.x+40>=10+20*j && 10+20*(i+1)>=t.y && t.y+40>=10+20*i)
-						{
-							if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
-							{
-								t.dieStatusChange();valid=0;
-							}
-						}
-						if (10+20*(j+2)>=t.x && t.x+40>=10+20*(j+1) && 10+20*(i+1)>=t.y && t.y+40>=10+20*i)
-						{
-							if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
-							{
-								t.dieStatusChange();valid=0;
-							}
-						}
-					}
-				}
-				
-				M.clear(i, j);
-				M.clear(i+1, j);
-			}
-			if (dir==3)
-			{
-				int j=(int)Math.floor(1.0*(x-10)/20.0);
-				int i=(int)Math.floor(1.0*(y-5-30)/20.0);
-				i=check(i);j=check(j);
-				if (M.map[i][j]>0 || M.map[i+1][j]>0) valid=0;//打到建筑物
-				
-				for (Tank t:M.TankLst)
-				{
-					if (t.valid==1)
-					{
-						if (10+20*(j+1)>=t.x && t.x+40>=10+20*j && 10+20*(i+1)>=t.y && t.y+40>=10+20*i)
-						{
-							if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
-							{
-								t.dieStatusChange();valid=0;
-							}
-						}
-						if (10+20*(j+2)>=t.x && t.x+40>=10+20*(j+1) && 10+20*(i+1)>=t.y && t.y+40>=10+20*i)
-						{
-							if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
-							{
-								t.dieStatusChange();valid=0;
-							}
-						}
-					}
-				}
-				M.clear(i, j);
-				M.clear(i+1, j);
-			}
-			//判断是否打到任何东西
-			if (x<10 || y<30 || x>530 || y>550) valid=0;
-		}
-	}
+		  int move=1;
+		  while(! M.bStop){
+            if (valid==0) return;
+            try{
+                sleep(TestMap.freshTime);
+            }catch(InterruptedException e){
+                System.out.println(e);
+            }
+            //0向上、1向下、2向左、3向右、4不动
+            int dx[] = {0,0,-8,8},dy[] = {-8,8,0,0};
+            if(valid==1 && canGoTo(x+dx[dir],y+dy[dir])==true){
+                x += dx[dir];
+                y += dy[dir];
+            }
+            else 
+            	if (move==0)
+            	{
+            		dieStatusChange();
+            		continue;
+            	}
+            	else
+            		move--;
+            
+            if (dir==0)//向上
+            {
+                int j=(int)Math.floor(1.0*(x-2-10)/20.0);
+                int i=(int)Math.floor(1.0*(y-30)/20.0);
+                i=check(i);j=check(j);
+                if (M.map[i][j]>0 || M.map[i][j+1]>0) dieStatusChange();//打到建筑物
+                
+                for (Tank t:M.TankLst)
+                {
+                    if (t.valid==1)
+                    {
+                        if (x+3>=t.x && t.x+40>=x-3 && y+3>=t.y && t.y+40>=y-3)
+                        {
+                            if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
+                            {
+                                t.dieStatusChange();
+                                dieStatusChange();
+                            }
+                        }
+                    }
+                }
+                M.clear(i, j);
+                M.clear(i, j+1);
+            }
+            if (dir==1)
+            {
+                int j=(int)Math.floor(1.0*(x-2-10)/20.0);
+                int i=(int)Math.floor(1.0*(y-30)/20.0);
+                i=check(i);j=check(j);
+                if (M.map[i][j]>0 || M.map[i][j+1]>0) dieStatusChange();//打到建筑物
+                
+                for (Tank t:M.TankLst)
+                {
+                    if (t.valid==1)
+                    {
+                        if (x+3>=t.x && t.x+40>=x-3 && y+3>=t.y && t.y+40>=y-3)
+                        {
+                            if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
+                            {
+                                t.dieStatusChange();
+                                dieStatusChange();
+                            }
+                        }
+                    }
+                }
+                
+                M.clear(i, j);
+                M.clear(i, j+1);
+            }
+            
+            if (dir==2)
+            {
+                int j=(int)Math.floor(1.0*(x-10)/20.0);
+                int i=(int)Math.floor(1.0*(y-2-30)/20.0);
+                i=check(i);j=check(j);
+                if (M.map[i][j]>0 || M.map[i+1][j]>0) dieStatusChange();//打到建筑物
+                
+                for (Tank t:M.TankLst)
+                {
+                    if (t.valid==1)
+                    {
+                        if (x+3>=t.x && t.x+40>=x-3 && y+3>=t.y && t.y+40>=y-3)
+                        {
+                            if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
+                            {
+                                t.dieStatusChange();
+                                dieStatusChange();
+                            }
+                        }
+                    }
+                }
+                
+                M.clear(i, j);
+                M.clear(i+1, j);
+            }
+            
+            if (dir==3)
+            {
+                int j=(int)Math.floor(1.0*(x-10)/20.0);
+                int i=(int)Math.floor(1.0*(y-2-30)/20.0);
+                i=check(i);j=check(j);
+                if (M.map[i][j]>0 || M.map[i+1][j]>0)dieStatusChange();//打到建筑物
+                
+                for (Tank t:M.TankLst)
+                {
+                    if (t.valid==1)
+                    {
+                        if (x+3>=t.x && t.x+40>=x-3 && y+3>=t.y && t.y+40>=y-3)
+                        {
+                            if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
+                            {
+                                t.dieStatusChange();
+                                dieStatusChange();
+                            }
+                        }
+                    }
+                }
+                M.clear(i, j);
+                M.clear(i+1, j);
+            }
+            //判断是否打到任何东西
+            if (x<10 || y<30 || x>530 || y>550)dieStatusChange();
+        }
+}
+
 	
 	int check(int x)
 	{
@@ -609,11 +622,12 @@ class Bullet extends Thread {
 		new_x2 = (int)Math.floor(1.0*(x-10)/20);
 		new_y1 = (int)Math.ceil(1.0*(y-30)/20);
 		new_y2 = (int)Math.floor(1.0*(y-30)/20);
-		if(new_x1>=0&&new_x1+1<26&&new_y1>=0&&new_y1+1<26 &&
-				new_x2>=0&&new_x2+1<26&&new_y2>=0&&new_y2+1<26){
+		if(new_x1>=0&&new_x1<=25&&new_y1>=0&&new_y1<=25 &&
+				new_x2>=0&&new_x2<=25&&new_y2>=0&&new_y2<=25){
 			if(M.map[new_y2][new_x2] == 2) return false;
+									else   return true;
 		}
-		return true;
+		return false;
 	}
 	
 	int getMapInfo(int x,int y){
@@ -651,6 +665,13 @@ class Bullet extends Thread {
 		int res=a[0]*1+a[1]*100+a[2]*10000+a[3]*1000000;
 		return res;
 	}
+	
+	void dieStatusChange()
+	{
+		valid=0;
+		T.shootLimit=false;
+	}
+	
 }
 
 class Map extends Frame{
@@ -902,16 +923,7 @@ class Map extends Frame{
 		new_th.start();
 		LeftTank--;
 	}
-	
-	void clearMap(int i,int j)
-	{
-		if(map[i][j] == 1)
-			map[i][j] = 0;
-		else if(map[i][j] == 2);
-		else if(map[i][j] == 5)
-			gameOver();
-	}
-	
+
 	int check(int x)
 	 {
 		int res=x;

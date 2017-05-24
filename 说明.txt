@@ -1,0 +1,14 @@
+更新：
+1）Tank线程run里的while条件加上 &&(valid!=0)，这样坦克进程就能终止了不会无限循环
+最好是要把涉及到tank遍历的也要写到一个过程里面，因为valid=0这件事也是需要同步的
+
+2)  更新Tank类shoot函数的子弹发射判定，坦克只有上一发子弹打到边界或者击中什么东西才能开下一枪，使用shootLimit 布尔变量表示当前能否发射子弹，true表示不能发射，初始为false，每发射一枚子弹，shootLimit=true，每一枚发射出去的子弹valid=0时将它所附属的坦克的shootLimit改回false，将所有valid=0的操作写在Bullet类的dieStatusChange()函数里，在末尾更新它所附属的坦克的shootLimit=true
+
+3）修改Bullet类的canGoTo函数里的逻辑判断
+其中 <26部分改成<=26，
+而里面 if 是金属 return false 后面加上 else return true
+而外面应该是return false 而不是 return true
+
+4) Bullet类部分在run 部分加上move 判定，如果两次循环子弹的x,y坐标都没有变化的话，那么就将该子弹设置为 valid=0 (对于某些打在钢板上的子弹不消失的解决)
+
+5)一些代码风格的统一与代码的缩进改进
