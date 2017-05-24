@@ -179,7 +179,7 @@ class Tank extends Thread {
 			{
 				pathRecord.clear();
 				nowStep=-1;
-				randomStep=10;
+				randomStep=30;
 				return;
 			}
 			/*
@@ -285,7 +285,7 @@ class Tank extends Thread {
 	{
 		double suddenTurnDir_a=Math.random();
 		double suddenTurnDir_b=Math.random();
-		if (Math.abs(suddenTurnDir_a-suddenTurnDir_b)<=0.0001)
+		if (Math.abs(suddenTurnDir_a-suddenTurnDir_b)<=0.001)
 		{
 			changeState((dir+1)%4);
 			return true;
