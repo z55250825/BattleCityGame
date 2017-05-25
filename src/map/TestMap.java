@@ -383,8 +383,8 @@ class Tank extends Thread {
 	 */
 	boolean out(int x,int y)
 	{
-		if (x<10||x>490)return true;
-		if (y<30||y>510)return true;
+		if (x<10||x>490) return true;
+		if (y<30||y>510) return true;
 		return false;
 	}
 	
@@ -452,12 +452,36 @@ class Tank extends Thread {
 	void dieStatusChange()
 	{
 		valid=0;
+		Bomb b=new Bomb(x,y);
+		M.bombs.add(b);
+		//System.out.println("New bomb created\n");
 		M.deleteTank(this);
 	}
 	
 }
 
-class Bullet extends Thread {
+class Bomb
+{
+	int x;
+	int y;
+	//炸弹的生命
+	int life = 8;
+	boolean isLive = true;
+	public Bomb(int x,int y)
+	{
+		this.x=x;
+		this.y=y;
+	}
+	//减少生命值
+	public void lifeDown()
+	{
+		if (life>1) life--;
+		else isLive = false;
+	}
+}
+
+class Bullet extends Thread
+{
 	volatile int valid;
 	int x, y, dir;
 	Map M;
@@ -634,8 +658,19 @@ class Map extends Frame{
 	volatile int LeftTank = 10;
 	volatile boolean bStop;
 	
+	Vector<Bomb> bombs = new Vector<Bomb>();
+	Image blastImage[]=new Image[8];
+	
 	class MainThread extends Thread {
 		public void run(){
+			ImageIcon icon = new ImageIcon();
+			for (int i=0;i<8;i++)
+			{
+				icon=new ImageIcon("pictures/blast"+(i+1)+".gif");
+				blastImage[i]=icon.getImage();
+				//if (blastImage[i]!=null) System.out.println("Truly get"+i+"\n");
+			}//Initialize blast images
+			
 			int new_tank_time = 5*1000,cnt = 10;
 			Tank my_tank = new Tank(9*20+10,24*20+30,6,0,Map.this,cnt++,5);
 			synchronized(TankLst)
@@ -744,9 +779,26 @@ class Map extends Frame{
 		g.drawImage(images, 10+12*20, 30+24*20, 40, 40,this);
 		paintTank(g);
 		paintBullet(g);
+		paintBlast(g);
 		//print();
 	}
-	void paintTank(Graphics g){
+	
+	void paintBlast(Graphics g)
+	{
+		for(int i=0;i<bombs.size();i++)
+		{
+	        //取出炸弹
+	        Bomb b = bombs.get(i);
+	        g.drawImage(blastImage[b.life-1], b.x, b.y, 40, 40, this);
+	        //System.out.format("%d\n",b.life);
+	        b.lifeDown();
+	        //如果life=0，将炸弹从bombs向量去掉
+	        if(b.isLive==false) bombs.remove(b);
+	    }
+	}
+	
+	void paintTank(Graphics g)
+	{
 		String path = "pictures";
 		synchronized(TankLst)
 		{
@@ -758,7 +810,6 @@ class Map extends Frame{
 				g.drawImage(images,t.x, t.y,40, 40, this);
 			}
 		}
-		//System.out.println();
 	}
 
 	void paintBullet(Graphics g){
@@ -767,7 +818,7 @@ class Map extends Frame{
 		{
 			for(Bullet b : BulletLst){
 				if (b.valid == 0) continue;
-				String dir = path + "/" + "bullet.jpg";
+				String dir = path + "/" + "bullet.gif";
 				ImageIcon icon = new ImageIcon(dir);
 				Image images = icon.getImage();
 				g.drawImage(images,b.x, b.y, 5, 5, this);
