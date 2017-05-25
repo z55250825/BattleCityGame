@@ -17,11 +17,39 @@ class Path
 	Path(int x,int y){this.x=x;this.y=y;}
 }
 
+/*
+ * ShootLimit: used for slowing down 
+ * AI tank's Bullet Interval between the
+ * last bullet and the next bullet
+ * 
+ * It's target:
+ * 
+ * After the last bullet hit something or 
+ * go out of the map,AI must wait 400ms
+ * for the next shoot
+ */
+class ShootLimit extends Thread
+{
+	Tank T;
+	ShootLimit(){T=null;}
+	ShootLimit(Tank T){this.T=T;}
+	
+	public void run()
+	{
+		try{
+			sleep(400);
+		}catch(InterruptedException e){
+			System.out.println(e);
+		}
+		T.shootLimit=false;
+	}
+}
+
 class Tank extends Thread {
 	/*
-	 * valid: the tank is dead? 1=not dead
+	 * valid: the tank is dead? 0 dead,>0 not dead
 	 * 
-	 * x,y: position x 10~530 y 30~550
+	 * x,y: position x:10~530 y:30~550
 	 * 
 	 * id: which tank texture to use
 	 * 
@@ -29,7 +57,7 @@ class Tank extends Thread {
 	 * 
 	 * num: the number code of the tank
 	 * the player tank is 10
-	 * and other tank's number > 10
+	 * and other AI tank's number > 10
 	 * 
 	 * speed: the moving speed of the tank
 	 * 
@@ -37,9 +65,17 @@ class Tank extends Thread {
 	 * after the randomStep
 	 * then the AI will select the shortest path to the HQ
 	 * 
-	 * nowStep:record the AI's next target position to arrive 
+	 * nowStep: record the AI's next target position to arrive 
 	 * 
-	 * shootLimit: judge whether the tank can shoot (1 shoot/5 seconds) 
+	 * shootLimit: judge whether the tank can shoot 
+	 * (1)a tank can't shoot the next bullet until the last bullet
+	 * hit something or go out of the map
+	 * (2)AI tank must wait 400ms to shoot the next bullet 
+	 * after one Bullet hit something or go out of the map
+	 * 
+	 * moveFlag: if move[i]=true means that now the tank is moving 
+	 * towards direction i (used for achieve the effect that shooting
+	 *  while moving)
 	 * 
 	 * M:the map M
 	 * 
@@ -82,6 +118,13 @@ class Tank extends Thread {
 		for (int i=0;i<4;++i)moveFlag[i]=false;
 	}
 	
+	/*
+	 * (non-Javadoc)
+	 * @see java.lang.Thread#run()
+	 * 
+	 * the main thread method
+	 * sleep and move alternatively
+	 */
 	public void run() 
 	{
 		{
@@ -98,10 +141,11 @@ class Tank extends Thread {
 			return;
 		}
 	}
+	
 	/*
-	 * keyBoard Code to Number
+	 * Transform keyBoard Code to Number
 	 */
-	int keyCodeToNum(int keyboardCode)
+	final static int keyCodeToNum(int keyboardCode)
 	{
 		if (keyboardCode==KeyEvent.VK_UP)return 0;
 		if (keyboardCode==KeyEvent.VK_DOWN)return 1;
@@ -111,6 +155,10 @@ class Tank extends Thread {
 		return -1;
 	}
 	
+	/*
+	 * find the next move direction from the 
+	 * moveFlag[] array 
+	 */
 	int findNextDirection()
 	{
 		for (int i=0;i<4;++i)
@@ -119,6 +167,10 @@ class Tank extends Thread {
 		return -1;
 	}
 	
+	/*
+	 * player's move control
+	 * used in thread to move in cycle
+	 */
 	void player_move()
 	{
 		int dir_tmp=findNextDirection();
@@ -127,7 +179,14 @@ class Tank extends Thread {
 	}
 	
 	/*
-	 * player_move
+	 * player's move direction control
+	 * used in Keyboard listener to control the 
+	 * actual move direction
+	 * 
+	 * when player pressed the keyBoard will
+	 * call this function to make the tank
+	 * move towards the corresponding direction
+	 * 
 	 * receive keyboard Code to judge
 	 * the operation
  	 */
@@ -140,16 +199,22 @@ class Tank extends Thread {
 			shoot();
 			return;
 		}
-		/*
-		 * changeState:
-		 * synchronized function to
-		 * change the tank's x,y,dir
-		 * 
-		 * dir_tmp:the next move
-		 */
 		moveFlagOn(dir_tmp);
 	}
 	
+	/*
+	 * player's move direction control
+	 * used in Keyboard listener to control the
+	 * actual move direction
+	 * 
+	 * when player release the keyBoard will
+	 * call this function to make the tank
+	 * stop moving towards the corresponding
+	 * direction
+	 * 
+	 * receive Keyboard Code to judge
+	 * the operation
+	 */
 	void player_stopMove(int keyboardCode)
 	{
 		int dir_tmp=keyCodeToNum(keyboardCode);
@@ -158,6 +223,10 @@ class Tank extends Thread {
 		moveFlagOff(dir_tmp);
 	}
 	
+	/*
+	 * control the moveFlag[] array
+	 * mark the corresponding position to true
+	 */
 	void moveFlagOn(int dir)
 	{
 		int dir_tmp=findNextDirection();
@@ -175,6 +244,10 @@ class Tank extends Thread {
 		if (dir_tmp==dir)return;
 	}
 	
+	/*
+	 * control the moveFlag[] array
+	 * mark the corresponding position to false
+	 */
 	void moveFlagOff(int dir)
 	{
 		int dir_tmp=findNextDirection();
@@ -185,7 +258,11 @@ class Tank extends Thread {
 		}
 	}
 	
-	int smoothPos(int x,int y,int lastDir,int dir)
+	/*
+	 * used for coordinate alignment when tank
+	 * turn direction
+	 */
+	final static int smoothPos(int x,int y,int lastDir,int dir)
 	{
 		if (dir<=1)
 		{
@@ -219,6 +296,9 @@ class Tank extends Thread {
 		}
 	}
 	
+	/*
+	 * used for ai move
+	 */
 	void ai_move()
 	{
 		shoot();
@@ -428,7 +508,7 @@ class Tank extends Thread {
 	/*
 	 * judge whether (x,y) is out of map
 	 */
-	boolean out(int x,int y)
+	final static boolean out(int x,int y)
 	{
 		if (x<10||x>490) return true;
 		if (y<30||y>510) return true;
@@ -452,7 +532,7 @@ class Tank extends Thread {
 					M.getMapNum(new_y2,new_x1) == 0 &&
 					M.getMapNum(new_y1,new_x1) == 0 &&
 					M.getMapNum(new_y2,new_x2) == 0 && 
-					overlap(num,x,y) == false)
+					overlap(num,x,y,M.TankLst) == false)
 				return true;
 		}
 		return false;
@@ -461,17 +541,38 @@ class Tank extends Thread {
 	/*
 	 * judge whether two tank is not overlapped
 	 */
-	boolean overlap(int t,int x,int y)
+	final static boolean overlap(int t,int x,int y,Vector<Tank> TankLst)
 	{
-		synchronized(M.TankLst)
+		int new_x,new_y;
+		synchronized(TankLst)
 		{
-			for(Tank tank : M.TankLst){
+			for(Tank tank : TankLst){
 				if(tank.valid==1)
-					if(tank.num != t && (Math.abs(tank.x-x)<45 && Math.abs(tank.y-y)<45))
-						return true;
+					if(tank.num != t)
+					{
+						if (Math.abs(x-tank.x)<40&&Math.abs(y-tank.y)<40)
+							return true;
+						if (!isIntegerCoordinate(tank))
+						{
+							int newCoordinate=Tank.smoothPos(tank.x, tank.y, tank.dir, (tank.dir+2)%4);
+							if (tank.dir<=1){new_x=tank.x;new_y=newCoordinate;}
+										else{new_x=newCoordinate;new_y=tank.y;}
+							if (Math.abs(x-new_x)<40&&Math.abs(y-new_y)<40)
+								return true;
+						}
+					}
 			}
 			return false;
 		}
+	}
+	
+	/*
+	 * judge whether a coordinate is alignment
+	 */
+	final static boolean isIntegerCoordinate(Tank t)
+	{
+		if ((t.x-10)%20==0&&(t.y-30)%20==0)return true;
+			return false;
 	}
 	
 	/*
@@ -479,7 +580,7 @@ class Tank extends Thread {
 	 * when AI already knows the shortest path from
 	 * her to the HQ
 	 */
-	int whereToGo(int x,int y,int Targetx,int Targety)
+	final static int whereToGo(int x,int y,int Targetx,int Targety)
 	{
 		if (x==Targetx)
 		{
@@ -496,6 +597,10 @@ class Tank extends Thread {
 		return -1;
 	}
 	
+	/*
+	 * change the tank's status to dead
+	 * and delete the tank
+	 */
 	void dieStatusChange()
 	{
 		valid=0;
@@ -505,12 +610,40 @@ class Tank extends Thread {
 		M.deleteTank(this);
 	}
 	
+	/*
+	 * to judge if the tank is controlled by player
+	 */
+	final boolean isPlayer()
+	{
+		if (num==10)return true;
+		return false;
+	}
+	
+	/*
+	 * change shootLimit from true to false
+	 * to permit the tank to shoot the next bullet
+	 * 
+	 * (1)if the tank is Player's,then change immediately
+	 * (2)if the tank is AI's,then AI needs to wait 400ms
+	 * and then change it
+	 * 
+	 */
+	void changeShootLimit()
+	{
+		if (isPlayer())shootLimit=false;
+			else
+			{
+				ShootLimit tmp=new ShootLimit(this);
+				Thread new_t=new Thread(tmp);
+				new_t.start();
+			}
+	}
+	
 }
 
 class Bomb
 {
-	int x;
-	int y;
+	int x,y;
 	//炸弹的生命
 	int life = 8;
 	boolean isLive = true;
@@ -686,7 +819,7 @@ class Bullet extends Thread
 	void dieStatusChange()
 	{
 		valid=0;
-		T.shootLimit=false;
+		T.changeShootLimit();
 		M.deleteBullet(this);
 	}
 	
@@ -731,17 +864,17 @@ class Map extends Frame{
 				repaint();
 				out:if(LeftTank > 0 && new_tank_time == 0){
 					new_tank_time = 5*1000;
-					if(! overlap(10,30)){
+					if(! Tank.overlap(cnt,10,30,TankLst)){
 						newTank(10,30,cnt);
 						cnt++;
 						break out;					
 					}
-					if(! overlap(24*20+10,30)){
+					if(! Tank.overlap(cnt,24*20+10,30,TankLst)){
 						newTank(24*20+10,30,cnt);
 						cnt++;
 						break out;
 					}
-					if(! overlap(12*20+10,30)){
+					if(! Tank.overlap(cnt,12*20+10,30,TankLst)){
 						newTank(12*20+10,30,cnt);
 						cnt++;
 						break out;
@@ -982,6 +1115,7 @@ class Map extends Frame{
 		return 0;
 	}
 	
+	/*
 	boolean overlap(int x,int y)
 	{
 		synchronized(TankLst)
@@ -992,7 +1126,7 @@ class Map extends Frame{
 			}
 			return false;
 		}
-	}
+	}*/
 	
 	void newTank(int x,int y, int cnt)
 	{
