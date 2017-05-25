@@ -1,6 +1,6 @@
-更新：
-1）Map类里的bstop,map,leftTank，Tank和Bullet类的x,y,dir,valid和shootLimit 根据某些关于进程终止的博客的意见，加上修饰符volatile
+Ver7更新：
+1）增加attackHQ方法，指定AI到达攻击地点之后的方向都朝着基地
+2）增加Bullet对碰消亡判定
 
-2）TankLst和BulletLst的synchronized尝试，可以支持从TankLst和BulletLst里删除已经valid=0的坦克和子弹，这样就能完全消除线程了，不会有玩家坦克死亡之后还能发射子弹的情况
 
 

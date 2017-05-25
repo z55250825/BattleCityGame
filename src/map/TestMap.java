@@ -98,7 +98,6 @@ class Tank extends Thread {
 		else
 		{
 			while ((! M.bStop)&&(this.valid>=1));
-			System.out.println("End!");
 			return;
 		}
 	}
@@ -252,6 +251,10 @@ class Tank extends Thread {
 		}
 	}
 	
+	/*
+	 * when AI is in uncertain status,she will random
+	 * select a direction and go 
+	 */
 	void randomSelectDirection()
 	{
 		Vector<Integer> move = new Vector<Integer>();
@@ -502,7 +505,7 @@ class Bullet extends Thread {
                 System.out.println(e);
             }
             //0向上、1向下、2向左、3向右、4不动
-            int dx[] = {0,0,-8,8},dy[] = {-8,8,0,0};
+            int dx[] = {0,0,-6,6},dy[] = {-6,6,0,0};
             if(valid==1 && canGoTo(x+dx[dir],y+dy[dir])==true){
                 x += dx[dir];
                 y += dy[dir];
@@ -513,113 +516,9 @@ class Bullet extends Thread {
             		dieStatusChange();
             		continue;
             	}
-            	else
-            		move--;
+            	else move--;
             
             changeState();
-            
-            /*if (dir==0)//向上
-            {
-                int j=(int)Math.floor(1.0*(x-2-10)/20.0);
-                int i=(int)Math.floor(1.0*(y-30)/20.0);
-                i=check(i);j=check(j);
-                if (M.map[i][j]>0 || M.map[i][j+1]>0) dieStatusChange();//打到建筑物
-                
-                for (Tank t:M.TankLst)
-                {
-                    if (t.valid==1)
-                    {
-                        if (x+3>=t.x && t.x+40>=x-3 && y+3>=t.y && t.y+40>=y-3)
-                        {
-                            if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
-                            {
-                                t.dieStatusChange();
-                                dieStatusChange();
-                            }
-                        }
-                    }
-                }
-                M.clear(i, j);
-                M.clear(i, j+1);
-            }
-            if (dir==1)
-            {
-                int j=(int)Math.floor(1.0*(x-2-10)/20.0);
-                int i=(int)Math.floor(1.0*(y-30)/20.0);
-                i=check(i);j=check(j);
-                if (M.map[i][j]>0 || M.map[i][j+1]>0) dieStatusChange();//打到建筑物
-                
-                for (Tank t:M.TankLst)
-                {
-                    if (t.valid==1)
-                    {
-                        if (x+3>=t.x && t.x+40>=x-3 && y+3>=t.y && t.y+40>=y-3)
-                        {
-                            if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
-                            {
-                                t.dieStatusChange();
-                                dieStatusChange();
-                            }
-                        }
-                    }
-                }
-                
-                M.clear(i, j);
-                M.clear(i, j+1);
-            }
-            
-            if (dir==2)
-            {
-                int j=(int)Math.floor(1.0*(x-10)/20.0);
-                int i=(int)Math.floor(1.0*(y-2-30)/20.0);
-                i=check(i);j=check(j);
-                if (M.map[i][j]>0 || M.map[i+1][j]>0) dieStatusChange();//打到建筑物
-                
-                for (Tank t:M.TankLst)
-                {
-                    if (t.valid==1)
-                    {
-                        if (x+3>=t.x && t.x+40>=x-3 && y+3>=t.y && t.y+40>=y-3)
-                        {
-                            if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
-                            {
-                                t.dieStatusChange();
-                                dieStatusChange();
-                            }
-                        }
-                    }
-                }
-                
-                M.clear(i, j);
-                M.clear(i+1, j);
-            }
-            
-            if (dir==3)
-            {
-                int j=(int)Math.floor(1.0*(x-10)/20.0);
-                int i=(int)Math.floor(1.0*(y-2-30)/20.0);
-                i=check(i);j=check(j);
-                if (M.map[i][j]>0 || M.map[i+1][j]>0)dieStatusChange();//打到建筑物
-                
-                for (Tank t:M.TankLst)
-                {
-                    if (t.valid==1)
-                    {
-                        if (x+3>=t.x && t.x+40>=x-3 && y+3>=t.y && t.y+40>=y-3)
-                        {
-                            if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
-                            {
-                                t.dieStatusChange();
-                                dieStatusChange();
-                            }
-                        }
-                    }
-                }
-                M.clear(i, j);
-                M.clear(i+1, j);
-            }
-            //判断是否打到任何东西
-            if (x<10 || y<30 || x>530 || y>550)dieStatusChange();*/
         }
 	}
 	
@@ -637,7 +536,7 @@ class Bullet extends Thread {
         	 dieStatusChange();//打到建筑物
          
          Tank tmp=null;
-         
+         Bullet tmpb=null;
          synchronized(M.TankLst)
          {
         	 for (Tank t:M.TankLst)
@@ -662,12 +561,35 @@ class Bullet extends Thread {
         	 dieStatusChange();
          }
          
+         synchronized(M.BulletLst)
+         {
+        	 for (Bullet b:M.BulletLst)
+        	 {
+        		 if (b.valid==1)
+        		 {
+        			 if (x+3>=b.x-3 && b.x+3>=x-3 && y+3>=b.y-3 && b.y+3>=y-3)
+        			 {
+        				 if (flag!=b.flag)//different sides
+        				 {	
+        					 tmpb=b;
+        					 break;
+        				 }
+        			 }
+        		 }
+        	 }
+         }
+         
+         if (tmpb!=null)
+         {
+        	 tmpb.dieStatusChange();
+        	 dieStatusChange();
+         }
+         
          M.clear(i, j);
          M.clear(i+icoordinateInc[dir], j+jcoordinateInc[dir]);
          if (x<10 || y<30 || x>530 || y>550)dieStatusChange();
 	}
 
-	
 	int check(int x)
 	{
 		int res=x;
@@ -688,47 +610,6 @@ class Bullet extends Thread {
 									else   return true;
 		}
 		return false;
-	}
-	
-	int getMapInfo(int x,int y){
-		int new_x1,new_y1,new_x2,new_y2;
-		new_x1 = (int)Math.ceil(1.0*(x-10)/20);
-		new_x2 = (int)Math.floor(1.0*(x-10)/20);
-		new_y1 = (int)Math.ceil(1.0*(y-30)/20);
-		new_y2 = (int)Math.floor(1.0*(y-30)/20);
-		if(new_x1>=0&&new_x1+1<26&&new_y1>=0&&new_y1+1<26 &&
-				new_x2>=0&&new_x2+1<26&&new_y2>=0&&new_y2+1<26){
-			if(M.map[new_y2][new_x2] == 2) return 2;//铁块
-			if(M.map[new_y2][new_x2] == 1) return 1;//木块
-			if(M.map[new_y2][new_x2] == 0)//底部是空地
-			{
-				if (new_y2>=24 && new_x2>=12 && new_x2<=13) return 3;//Home
-				else
-				{
-					synchronized(M.TankLst)
-					{
-						for(Tank t : M.TankLst){ //[t.x,t.x+40]  [t.y,t.y+40]
-							if (x+2>=t.x && x-2<=t.x+40 && y+2>=t.y && y-2<=t.y+40) return t.num;//此处坦克
-						}
-					}
-				}
-				return 0;
-			}
-		}
-		return 6;
-	}
-	
-	int getBulletInfo(int x,int y)
-	{
-		int a[]={0,0,0,0};
-		int dx[]={-11,11,11,-11};
-		int dy[]={-11,-11,11,11};
-		for (int i=0;i<4;i++)
-		{
-			a[i]=getMapInfo(x+dx[i],y+dy[i]);
-		}
-		int res=a[0]*1+a[1]*100+a[2]*10000+a[3]*1000000;
-		return res;
 	}
 	
 	void dieStatusChange()
@@ -886,7 +767,7 @@ class Map extends Frame{
 		{
 			for(Bullet b : BulletLst){
 				if (b.valid == 0) continue;
-				String dir = path + "/" + "bullet.jpeg";
+				String dir = path + "/" + "bullet.jpg";
 				ImageIcon icon = new ImageIcon(dir);
 				Image images = icon.getImage();
 				g.drawImage(images,b.x, b.y, 5, 5, this);
@@ -984,6 +865,14 @@ class Map extends Frame{
 		return false;
 	}
 	
+	int attackHQ(int x,int y)
+	{
+		if (x==9&&y==24)return 3;
+		if (x==15&&y==24)return 2;
+		if (y==21&&x==12)return 1;
+		return 0;
+	}
+	
 	boolean overlap(int x,int y)
 	{
 		synchronized(TankLst)
@@ -998,7 +887,7 @@ class Map extends Frame{
 	
 	void newTank(int x,int y, int cnt)
 	{
-		Tank new_tank = new Tank(x,y,7,1,this,cnt,5);
+		Tank new_tank = new Tank(x,y,7,1,this,cnt,4);
 		synchronized(TankLst)
 		{
 			TankLst.add(new_tank);
@@ -1008,6 +897,10 @@ class Map extends Frame{
 		LeftTank--;
 	}
 	
+	/*
+	 * delete tank T from the TankLst
+	 * synchronized 
+	 */
 	void deleteTank(Tank t)
 	{
 		synchronized(TankLst)
@@ -1016,6 +909,10 @@ class Map extends Frame{
 		}
 	}
 	
+	/*
+	 * delete Bullet B from the BulletLst
+	 * synchronized
+	 */
 	void deleteBullet(Bullet b)
 	{
 		synchronized(BulletLst)
@@ -1048,7 +945,7 @@ class Map extends Frame{
 }
 
 public class TestMap {
-	final static int freshTime=50;
+	final static int freshTime=25;
 	public static void main(String[] args) {
 		Map M = new Map(1);
 	}
