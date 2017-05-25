@@ -51,6 +51,7 @@ class Tank extends Thread {
 	int randomStep=MAXSTEP;
 	int nowStep=-1;
 	volatile boolean shootLimit=false;
+	volatile boolean moveFlag[]=new boolean[4];
 	Map M;
 	
 	/*
@@ -78,11 +79,11 @@ class Tank extends Thread {
 		dx=new int[]{0,0,-speed,speed};
 		dy=new int[]{-speed,speed,0,0};
 		this.shootLimit=false;
+		for (int i=0;i<4;++i)moveFlag[i]=false;
 	}
 	
 	public void run() 
 	{
-		if (num>10)
 		{
 			while((! M.bStop)&&(this.valid>=1))
 			{
@@ -91,13 +92,9 @@ class Tank extends Thread {
 				}catch(InterruptedException e){
 					System.out.println(e);
 				}
-				ai_move();
+				if (num>10)ai_move();
+					else  player_move(); 
 			}
-			return;
-		}
-		else
-		{
-			while ((! M.bStop)&&(this.valid>=1));
 			return;
 		}
 	}
@@ -112,6 +109,21 @@ class Tank extends Thread {
 		if (keyboardCode==KeyEvent.VK_RIGHT)return 3;
 		if (keyboardCode==KeyEvent.VK_SPACE)return -2;
 		return -1;
+	}
+	
+	int findNextDirection()
+	{
+		for (int i=0;i<4;++i)
+			if (moveFlag[i]==true)
+				return i;
+		return -1;
+	}
+	
+	void player_move()
+	{
+		int dir_tmp=findNextDirection();
+		if (dir_tmp==-1)return;
+		changeState(dir_tmp);
 	}
 	
 	/*
@@ -135,7 +147,42 @@ class Tank extends Thread {
 		 * 
 		 * dir_tmp:the next move
 		 */
-		changeState(dir_tmp);
+		moveFlagOn(dir_tmp);
+	}
+	
+	void player_stopMove(int keyboardCode)
+	{
+		int dir_tmp=keyCodeToNum(keyboardCode);
+		if (dir_tmp==-1)return;
+		if (dir_tmp==-2)return;
+		moveFlagOff(dir_tmp);
+	}
+	
+	void moveFlagOn(int dir)
+	{
+		int dir_tmp=findNextDirection();
+		if (dir_tmp==-1)
+		{
+			moveFlag[dir]=true;
+			return;
+		}
+		if (dir_tmp!=dir)
+		{
+			moveFlag[dir_tmp]=false;
+			moveFlag[dir]=true;
+			return;
+		}
+		if (dir_tmp==dir)return;
+	}
+	
+	void moveFlagOff(int dir)
+	{
+		int dir_tmp=findNextDirection();
+		if (dir_tmp==-1)return;
+		if (dir_tmp==dir)
+		{
+			moveFlag[dir_tmp]=false;
+		}
 	}
 	
 	int smoothPos(int x,int y,int lastDir,int dir)
@@ -744,6 +791,17 @@ class Map extends Frame{
 					{
 						if (tank.num==10)
 							tank.player_move(e.getKeyCode());
+					}
+				}
+			}
+			public void keyReleased(KeyEvent e)
+			{
+				synchronized(TankLst)
+				{
+					for (Tank tank:TankLst)
+					{
+						if (tank.num==10)
+							tank.player_stopMove(e.getKeyCode());
 					}
 				}
 			}
