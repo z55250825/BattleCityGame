@@ -45,11 +45,12 @@ class Tank extends Thread {
 	 * 
 	 * 
 	 */
-	int valid, x, y, id, dir, num, speed;
+	volatile int valid, x, y, dir;
+	int id, num, speed;
 	final static int MAXSTEP=200;
 	int randomStep=MAXSTEP;
 	int nowStep=-1;
-	boolean shootLimit=false;
+	volatile boolean shootLimit=false;
 	Map M;
 	
 	/*
@@ -92,9 +93,14 @@ class Tank extends Thread {
 				}
 				ai_move();
 			}
+			return;
 		}
 		else
+		{
 			while ((! M.bStop)&&(this.valid>=1));
+			System.out.println("End!");
+			return;
+		}
 	}
 	/*
 	 * keyBoard Code to Number
@@ -330,7 +336,10 @@ class Tank extends Thread {
 			shootLimit=true;
 			Bullet b=new Bullet(this,M);
 			Thread th = new Thread(b);
-			M.BulletLst.add(b);
+			synchronized(M.BulletLst)
+			{
+				M.BulletLst.add(b);
+			}
 			th.start();
 		}
 	}
@@ -404,12 +413,15 @@ class Tank extends Thread {
 	 */
 	boolean overlap(int t,int x,int y)
 	{
-		for(Tank tank : M.TankLst){
-		  if(tank.valid==1)
-			if(tank.num != t && (Math.abs(tank.x-x)<45 && Math.abs(tank.y-y)<45))
-				return true;
+		synchronized(M.TankLst)
+		{
+			for(Tank tank : M.TankLst){
+				if(tank.valid==1)
+					if(tank.num != t && (Math.abs(tank.x-x)<45 && Math.abs(tank.y-y)<45))
+						return true;
+			}
+			return false;
 		}
-		return false;
 	}
 	
 	/*
@@ -437,12 +449,14 @@ class Tank extends Thread {
 	void dieStatusChange()
 	{
 		valid=0;
+		M.deleteTank(this);
 	}
 	
 }
 
 class Bullet extends Thread {
-	int valid, x, y, dir;
+	volatile int valid;
+	int x, y, dir;
 	Map M;
 	Tank T;
 	int flag;//0代表己方，1代表敌方。
@@ -502,7 +516,9 @@ class Bullet extends Thread {
             	else
             		move--;
             
-            if (dir==0)//向上
+            changeState();
+            
+            /*if (dir==0)//向上
             {
                 int j=(int)Math.floor(1.0*(x-2-10)/20.0);
                 int i=(int)Math.floor(1.0*(y-30)/20.0);
@@ -603,9 +619,53 @@ class Bullet extends Thread {
                 M.clear(i+1, j);
             }
             //判断是否打到任何东西
-            if (x<10 || y<30 || x>530 || y>550)dieStatusChange();
+            if (x<10 || y<30 || x>530 || y>550)dieStatusChange();*/
         }
-}
+	}
+	
+	final static int xcoordinateDec[]={-2,-2,0,0};
+	final static int ycoordinateDec[]={0,0,-2,-2};
+	final static int icoordinateInc[]={0,0,1,1};
+	final static int jcoordinateInc[]={1,1,0,0};
+	
+	void changeState()
+	{
+	     int j=(int)Math.floor(1.0*(x+xcoordinateDec[dir]-10)/20.0);
+         int i=(int)Math.floor(1.0*(y+ycoordinateDec[dir]-30)/20.0);
+         i=check(i);j=check(j);
+         if (M.map[i][j]>0 || M.map[i+icoordinateInc[dir]][j+jcoordinateInc[dir]]>0)
+        	 dieStatusChange();//打到建筑物
+         
+         Tank tmp=null;
+         
+         synchronized(M.TankLst)
+         {
+        	 for (Tank t:M.TankLst)
+        	 {
+        		 if (t.valid==1)
+        		 {
+        			 if (x+3>=t.x && t.x+40>=x-3 && y+3>=t.y && t.y+40>=y-3)
+        			 {
+        				 if ((flag==0 && t.num>10) || (flag==1 && t.num==10))
+        				 {	
+        					 tmp=t;
+        					 break;
+        				 }
+        			 }
+        		 }
+        	 }
+         }
+         
+         if (tmp!=null)
+         {
+        	 tmp.dieStatusChange();
+        	 dieStatusChange();
+         }
+         
+         M.clear(i, j);
+         M.clear(i+icoordinateInc[dir], j+jcoordinateInc[dir]);
+         if (x<10 || y<30 || x>530 || y>550)dieStatusChange();
+	}
 
 	
 	int check(int x)
@@ -644,9 +704,14 @@ class Bullet extends Thread {
 			{
 				if (new_y2>=24 && new_x2>=12 && new_x2<=13) return 3;//Home
 				else
-					for(Tank t : M.TankLst){ //[t.x,t.x+40]  [t.y,t.y+40]
-						if (x+2>=t.x && x-2<=t.x+40 && y+2>=t.y && y-2<=t.y+40) return t.num;//此处坦克
+				{
+					synchronized(M.TankLst)
+					{
+						for(Tank t : M.TankLst){ //[t.x,t.x+40]  [t.y,t.y+40]
+							if (x+2>=t.x && x-2<=t.x+40 && y+2>=t.y && y-2<=t.y+40) return t.num;//此处坦克
+						}
 					}
+				}
 				return 0;
 			}
 		}
@@ -670,6 +735,7 @@ class Bullet extends Thread {
 	{
 		valid=0;
 		T.shootLimit=false;
+		M.deleteBullet(this);
 	}
 	
 }
@@ -677,21 +743,24 @@ class Bullet extends Thread {
 class Map extends Frame{
 	private static final long serialVersionUID = 1L;
 	
-	final int dx[]={0,0,-1,1};
-	final int dy[]={-1,1,0,0};
+	final static int dx[]={0,0,-1,1};
+	final static int dy[]={-1,1,0,0};
 	
-	int map[][] = new int[26][26];
+	volatile int map[][] = new int[26][26];
 	Vector<Tank> TankLst = new Vector<Tank>();
 	Vector<Bullet> BulletLst = new Vector<Bullet>();
 	MainThread thread;
-	int LeftTank = 10;
-	boolean bStop;
+	volatile int LeftTank = 10;
+	volatile boolean bStop;
 	
 	class MainThread extends Thread {
 		public void run(){
 			int new_tank_time = 5*1000,cnt = 10;
 			Tank my_tank = new Tank(9*20+10,24*20+30,6,0,Map.this,cnt++,5);
-			TankLst.add(my_tank);
+			synchronized(TankLst)
+			{
+				TankLst.add(my_tank);
+			}
 			Thread th = new Thread(my_tank);
 			th.start();
 			newTank(10,30,cnt++);newTank(24*20+10,30,cnt++);newTank(12*20+10,30,cnt++);
@@ -753,10 +822,13 @@ class Map extends Frame{
 		this.addKeyListener(new KeyAdapter(){
 			public void keyPressed(KeyEvent e)
 			{
-				for (Tank tank:TankLst)
+				synchronized(TankLst)
 				{
-					if (tank.num==10)
-						tank.player_move(e.getKeyCode());
+					for (Tank tank:TankLst)
+					{
+						if (tank.num==10)
+							tank.player_move(e.getKeyCode());
+					}
 				}
 			}
 		});
@@ -795,24 +867,30 @@ class Map extends Frame{
 	}
 	void paintTank(Graphics g){
 		String path = "pictures";
-		for(Tank t : TankLst){
-			if(t.valid == 0) continue;
-			String dir = path + "/" + t.id + t.dir + ".gif";
-			ImageIcon icon = new ImageIcon(dir);
-			Image images = icon.getImage();
-			g.drawImage(images,t.x, t.y,40, 40, this);
+		synchronized(TankLst)
+		{
+			for(Tank t : TankLst){
+				if(t.valid == 0) continue;
+				String dir = path + "/" + t.id + t.dir + ".gif";
+				ImageIcon icon = new ImageIcon(dir);
+				Image images = icon.getImage();
+				g.drawImage(images,t.x, t.y,40, 40, this);
+			}
 		}
 		//System.out.println();
 	}
 
 	void paintBullet(Graphics g){
 		String path = "pictures";
-		for(Bullet b : BulletLst){
-			if (b.valid == 0) continue;
-			String dir = path + "/" + "bullet.jpeg";
-			ImageIcon icon = new ImageIcon(dir);
-			Image images = icon.getImage();
-			g.drawImage(images,b.x, b.y, 5, 5, this);
+		synchronized(BulletLst)
+		{
+			for(Bullet b : BulletLst){
+				if (b.valid == 0) continue;
+				String dir = path + "/" + "bullet.jpeg";
+				ImageIcon icon = new ImageIcon(dir);
+				Image images = icon.getImage();
+				g.drawImage(images,b.x, b.y, 5, 5, this);
+			}
 		}
 	}
 	
@@ -908,20 +986,42 @@ class Map extends Frame{
 	
 	boolean overlap(int x,int y)
 	{
-		for(Tank tank : TankLst){
-			if(Math.abs(tank.x-x)<45 && Math.abs(tank.y-y)<45)
-				return true;
+		synchronized(TankLst)
+		{
+			for(Tank tank : TankLst){
+				if(Math.abs(tank.x-x)<45 && Math.abs(tank.y-y)<45)
+					return true;
+			}
+			return false;
 		}
-		return false;
 	}
 	
 	void newTank(int x,int y, int cnt)
 	{
 		Tank new_tank = new Tank(x,y,7,1,this,cnt,5);
-		TankLst.add(new_tank);
+		synchronized(TankLst)
+		{
+			TankLst.add(new_tank);
+		}
 		Thread new_th = new Thread(new_tank);
 		new_th.start();
 		LeftTank--;
+	}
+	
+	void deleteTank(Tank t)
+	{
+		synchronized(TankLst)
+		{
+			TankLst.removeElement(t);
+		}
+	}
+	
+	void deleteBullet(Bullet b)
+	{
+		synchronized(BulletLst)
+		{
+			BulletLst.removeElement(b);
+		}
 	}
 
 	int check(int x)
