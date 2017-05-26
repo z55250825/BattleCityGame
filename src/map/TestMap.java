@@ -118,7 +118,7 @@ class Tank extends Thread {
 		this.num = num;
 		this.speed = speed;
 		if (this.num==10) this.player_life=player_life;//initialize player_life
-		else player_life=1;
+					else this.player_life=1;
 		dx=new int[]{0,0,-speed,speed};
 		dy=new int[]{-speed,speed,0,0};
 		this.shootLimit=false;
@@ -900,6 +900,7 @@ class Map extends Frame{
 	MainThread thread;
 	volatile int LeftTank = 10;
 	volatile boolean bStop;
+	volatile boolean Over;
 	
 	Vector<Bomb> bombs = new Vector<Bomb>();
 	Vector <Saint> saints = new Vector<Saint>();
@@ -950,23 +951,34 @@ class Map extends Frame{
 			newTank(10,30,cnt++);newTank(24*20+10,30,cnt++);newTank(12*20+10,30,cnt++);
 			while(! bStop){
 				repaint();
-				out:if(LeftTank > 0 && new_tank_time == 0){
-					new_tank_time = 5*1000;
-					if(! Tank.overlap(cnt,10,30,TankLst)){
-						newTank(10,30,cnt);
-						cnt++;
-						break out;					
-					}
-					if(! Tank.overlap(cnt,24*20+10,30,TankLst)){
-						newTank(24*20+10,30,cnt);
-						cnt++;
-						break out;
-					}
-					if(! Tank.overlap(cnt,12*20+10,30,TankLst)){
-						newTank(12*20+10,30,cnt);
-						cnt++;
-						break out;
-					}
+					if(LeftTank > 0 && new_tank_time == 0)
+					{
+						new_tank_time = 5*1000;
+						switch(LeftTank%3)
+						{
+							case 0:
+									if(! Tank.overlap(cnt,10,30,TankLst))
+									{
+											newTank(10,30,cnt);
+											cnt++;
+											break;					
+									}
+							case 1:
+									if(! Tank.overlap(cnt,24*20+10,30,TankLst))
+									{
+											newTank(24*20+10,30,cnt);
+											cnt++;
+											break;
+									}
+							case 2:
+									if(! Tank.overlap(cnt,12*20+10,30,TankLst))
+									{
+											newTank(12*20+10,30,cnt);
+											cnt++;
+											break;
+									}
+							default:
+						}
 				}
 				try{
 					sleep(TestMap.freshTime);
@@ -1008,6 +1020,7 @@ class Map extends Frame{
 	 */
 	Map(){
 		editorMode=true;
+		Over=false;
 		findState=0;
 		editorX=0;editorY=0;
 		
@@ -1161,6 +1174,7 @@ class Map extends Frame{
 	
 	Map(int level){
 		editorMode=false;
+		Over=false;
 		try{
 			File f = new File("Maps");
 			File fs[] = f.listFiles();
@@ -1195,6 +1209,7 @@ class Map extends Frame{
 		this.addKeyListener(new KeyAdapter(){
 			public void keyPressed(KeyEvent e)
 			{
+				if (!Over)
 				synchronized(TankLst)
 				{
 					for (Tank tank:TankLst)
@@ -1206,6 +1221,7 @@ class Map extends Frame{
 			}
 			public void keyReleased(KeyEvent e)
 			{
+				if (!Over)
 				synchronized(TankLst)
 				{
 					for (Tank tank:TankLst)
@@ -1238,23 +1254,20 @@ class Map extends Frame{
 		String dir = path + "/"+"symbol.gif";
 		ImageIcon icon = new ImageIcon(dir);
 		Image images = icon.getImage();
-		g.drawImage(images, 10+12*20, 30+24*20, 40, 40,this);
-		if (editorMode)
+		g.drawImage(images, 250, 510, 40, 40,this);
+		if (flashTime>=halfFlashTankTime)
 		{
-			if (flashTime>=halfFlashTankTime)
-			{
-				dir=path+"/"+"60.gif";
-				icon=new ImageIcon(dir);
-				images=icon.getImage();
-				g.drawImage(images,	10+editorY*20, 30+editorX*20, 40,40,this);
-				flashTime--;
-			}
-			else
-			{
-				flashTime--;
-				if (flashTime==-1)
-					flashTime=flashTankTime;
-			}
+			dir=path+"/"+"60.gif";
+			icon=new ImageIcon(dir);
+			images=icon.getImage();
+			g.drawImage(images,	10+editorY*20, 30+editorX*20, 40,40,this);
+			flashTime--;	
+		}
+		else
+		{
+			flashTime--;
+			if (flashTime==-1)
+				flashTime=flashTankTime;
 		}
 	}
 	
@@ -1307,26 +1320,23 @@ class Map extends Frame{
 				}
 			}
 		}
-		String dir = path + "/"+"symbol.gif";
-		ImageIcon icon = new ImageIcon(dir);
-		Image images = icon.getImage();
-		g.drawImage(images, 10+12*20, 30+24*20, 40, 40,this);
-		if (editorMode)
+		if (!Over)
 		{
-			if (flashTime>=halfFlashTankTime)
-			{
-				dir=path+"/"+"60.gif";
-				icon=new ImageIcon(dir);
-				images=icon.getImage();
-				g.drawImage(images,	10+editorY*20, 30+editorX*20, 40,40,this);
-				flashTime--;
-			}
-			else
-			{
-				flashTime--;
-				if (flashTime==-1)
-					flashTime=flashTankTime;
-			}
+			String dir = path + "/symbol.gif";
+			ImageIcon icon = new ImageIcon(dir);
+			Image images = icon.getImage();
+			g.drawImage(images, 250, 510 , 40, 40,this);
+		}
+		else
+		{
+			String dir=path+"/destory.gif";
+			ImageIcon icon=new ImageIcon(dir);
+			Image images=icon.getImage();
+			g.drawImage(images, 250, 510, 40,40,this);
+			dir=path+"/over.gif";
+			icon=new ImageIcon(dir);
+			images =icon.getImage();
+			g.drawImage(images, 110, 210, 280, 80,this);
 		}
 		//print();
 	}
@@ -1575,9 +1585,31 @@ class Map extends Frame{
 		else if(map[i][j] == 5) gameOver();
 	 }
 	
+	class GameOverTimeCount extends Thread
+	{
+		Map M;
+		GameOverTimeCount(){M=null;}
+		GameOverTimeCount(Map M){this.M=M;}
+		
+		final static int CountTime=5000;
+		public void run()
+		{
+			try
+			{
+				sleep(CountTime);
+			}catch(InterruptedException e){
+				System.out.println(e);
+			}
+			M.bStop=true;
+		}
+	}
+	
 	void gameOver()
 	{
-		bStop = true;
+		Over=true;
+		GameOverTimeCount count=new GameOverTimeCount(this);
+		Thread new_t=new Thread(count);
+		new_t.start();
 	}
 }
 
