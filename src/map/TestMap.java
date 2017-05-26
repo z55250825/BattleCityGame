@@ -38,6 +38,17 @@ class Path
 	Path(int x,int y){this.x=x;this.y=y;}
 }
 
+class MusicPlayer extends Thread
+{
+	String path;
+	MusicPlayer(){path="";}
+	MusicPlayer(String name){this.path=name;}
+	public void run()
+	{
+		Map.playStartMusic(path);
+	}
+}
+
 class Tank extends Thread {
 	/*
 	 * valid: the tank is dead? 0 dead,>0 not dead
@@ -464,6 +475,7 @@ class Tank extends Thread {
 		if (shootLimit==false)
 		{
 			shootLimit=true;
+			if (this.isPlayer())Map.playMusic("fire");
 			Bullet b=new Bullet(this,M);
 			Thread th = new Thread(b);
 			synchronized(M.BulletLst)
@@ -606,6 +618,7 @@ class Tank extends Thread {
 		valid=0;
 		Bomb b=new Bomb(x,y);
 		M.bombs.add(b);
+		Map.playMusic("blast");
 		player_life=player_life-1;
 		M.deleteTank(this);
 		if (num==10)
@@ -895,6 +908,7 @@ class Bullet extends Thread
 	void dieStatusChange()
 	{
 		valid=0;
+		if (T.isPlayer())Map.playMusic("hit");
 		T.changeShootLimit();
 		M.deleteBullet(this);
 	}
@@ -1190,13 +1204,6 @@ class Map extends Frame{
 	}
 	
 	Map(int level){
-		class MusicPlayer extends Thread
-		{
-			public void run()
-			{
-				Map.playStartMusic();
-			}
-		}
 		editorMode=false;
 		Over=false;
 		try{
@@ -1261,9 +1268,7 @@ class Map extends Frame{
 		this.setVisible(true);
 		thread = new MainThread();
 		thread.start();
-		MusicPlayer mp=new MusicPlayer();
-		Thread new_t=new Thread(mp);
-		new_t.start();
+		playMusic("start");
 	}
 	
 	void editorPaint(Graphics g)
@@ -1659,7 +1664,11 @@ class Map extends Frame{
 		j=check(j);
 		if(map[i][j] == 1) map[i][j] = 0;
 		else if(map[i][j] == 2) map[i][j] = 2;
-		else if(map[i][j] == 5) gameOver(true);
+		else if(map[i][j] == 5) 
+		{
+			Map.playMusic("blast");
+			gameOver(true);
+		}
 	 }
 	
 	class GameOverTimeCount extends Thread
@@ -1695,15 +1704,22 @@ class Map extends Frame{
 		new_t.start();
 	}
 	
-	final static void playStartMusic()
+	final static void playStartMusic(String path)
 	{
 		try{
-			FileInputStream fileau=new FileInputStream("music/start.wav");
+			FileInputStream fileau=new FileInputStream("music/"+path+".wav");
 			AudioStream as=new AudioStream(fileau);
 			AudioPlayer.player.start(as);
 		}catch(Exception e){
 			e.printStackTrace();
 		}
+	}
+	
+	final static void playMusic(String Path)
+	{
+		MusicPlayer mp=new MusicPlayer(Path);
+		Thread new_t=new Thread(mp);
+		mp.start();
 	}
 }
 
