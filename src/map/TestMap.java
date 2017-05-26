@@ -105,6 +105,10 @@ class Tank extends Thread {
 	
 	Tank(int x,int y,int id,int dir,Map M,int num,int speed, int player_life)
 	{
+		Saint s=new Saint(x,y);
+		M.saints.add(s);
+		//s.entertainment();
+		
 		valid = 1;
 		this.x = x;
 		this.y = y;
@@ -659,7 +663,8 @@ class Bomb
 	int x,y;
 	//炸弹的生命
 	int life = 8;
-	int period=10;
+	final static int bombPeriod=1;
+	int period=bombPeriod;
 	boolean isLive = true;
 	public Bomb(int x,int y)
 	{
@@ -669,9 +674,51 @@ class Bomb
 	//减少生命值
 	public void lifeDown()
 	{
-		if (life>1) life--;
-		else isLive = false;
+		period--;
+		if (period==0)
+		{
+			period=bombPeriod;
+			if (life>1) life--;
+				else isLive = false;
+		}
 	}
+}
+
+class Saint
+{
+    int x,y;
+    int life=4;
+    final static int saintPeriod=5;
+    int period=saintPeriod;
+    boolean isLive=true;
+    //volatile boolean entertainment=true;
+    
+    public Saint(int x,int y)
+    {
+        this.x=x;
+        this.y=y;
+        //entertainment=true;
+    }
+    
+    public void lifeDown()
+    {
+    	period--;
+    	if (period==0)
+    	{
+    		period=saintPeriod;
+    		if (life>1) life--;
+    			else 
+    			{
+    				isLive = false;
+    				//entertainment=false;
+    			}
+    	}
+    }
+    
+    /*public void entertainment()
+    {
+    	while (entertainment);
+    }*/
 }
 
 class Bullet extends Thread
@@ -855,7 +902,9 @@ class Map extends Frame{
 	volatile boolean bStop;
 	
 	Vector<Bomb> bombs = new Vector<Bomb>();
+	Vector <Saint> saints = new Vector<Saint>();
 	Image blastImage[]=new Image[8];
+	Image bornImage[]=new Image[4];
 	
 	class MainThread extends Thread {
 		public void run(){
@@ -883,6 +932,12 @@ class Map extends Frame{
 				icon=new ImageIcon("pictures/blast"+(i+1)+".gif");
 				blastImage[i]=icon.getImage();
 			}//Initialize blast images
+			
+			for (int i=0;i<4;i++)
+			{
+				icon=new ImageIcon("pictures/born"+(i+1)+".gif");
+				bornImage[i]=icon.getImage(); 
+			}//Initialize born images
 			
 			int new_tank_time = 5*1000,cnt = 10;
 			Tank my_tank = new Tank(9*20+10,24*20+30,6,0,Map.this,cnt++,5,3);
@@ -1203,6 +1258,9 @@ class Map extends Frame{
 		}
 	}
 	
+	final static int seaStreamPeriod=200;
+	int seaStreamState=seaStreamPeriod*2;
+	
 	public void paint(Graphics g){
 		super.paint(g);
 		g.setColor(Color.white);
@@ -1218,8 +1276,19 @@ class Map extends Frame{
 		String path = "pictures";
 		for (Path Sea : SeaCoordinate)
 		{
+			String dir;
+			if (this.seaStreamState>=seaStreamPeriod)
+			{
+				seaStreamState--;
+				dir=path+"/3.gif";
+			}
+			else 
+			{
+				seaStreamState--;
+				if (seaStreamState==0)seaStreamState=seaStreamPeriod*2;
+				dir=path+"/3B.gif";
+			}
 			int i=Sea.x,j=Sea.y;
-			String dir=path+"/3.gif";
 			ImageIcon icon=new ImageIcon(dir);
 			Image images=icon.getImage();
 			g.drawImage(images, 10+j*20, 30+i*20, 20,20,this);
@@ -1227,6 +1296,7 @@ class Map extends Frame{
 		paintTank(g);
 		paintBullet(g);
 		paintBlast(g);
+		paintSaint(g);
 		for(int i=0;i<26;i++){
 			for(int j=0;j<26;j++){
 				if(map[i][j] != 0 && map[i][j] != 5 &&map[i][j] !=3){
@@ -1274,6 +1344,18 @@ class Map extends Frame{
 	        if(b.isLive==false) bombs.remove(b);
 	    }
 	}
+	
+	void paintSaint(Graphics g)
+	{
+		for (int i=0;i<saints.size();i++)
+		{
+			Saint s=saints.get(i);
+			g.drawImage(bornImage[s.life-1], s.x, s.y, 40, 40, this);
+			s.lifeDown();
+			if (s.isLive==false) saints.remove(s);
+		}
+	}
+	
 	
 	void paintTank(Graphics g)
 	{
