@@ -7,6 +7,26 @@ import java.util.*;
 import javax.swing.*;
 
 /*
+ * important parameter
+ * 
+ * 1) freshTime(TestMap Class)(used for paint period)
+ * 
+ * 2) Maxstep(Tank Class)(determine the AI's beginning movement)
+ * 
+ * 3) bombPeriod(Bomb Class)(determine the Bomb dynamic effect)
+ * 
+ * 4) saintPeriod(Saint Class)(determine the Saint dynamic effect)
+ * 
+ * 5) flashTankTime(Map Class)(determine the tank's flash period
+ * int map editor Mode)(flash tank used for determining the position
+ * in editor mode)
+ * 
+ * 6) seaStreamPeriod(Map Class)(determine the sea's flow dynamic effect)
+ * 
+ * 7) GameOverTime(GameOverCount Class)(used for show GameOver gif)
+ */
+
+/*
  * Path Class:used for Saving Path 
  * from some positions to the HQ
  */
@@ -15,34 +35,6 @@ class Path
 	int x,y;
 	Path(){}
 	Path(int x,int y){this.x=x;this.y=y;}
-}
-
-/*
- * ShootLimit: used for slowing down 
- * AI tank's Bullet Interval between the
- * last bullet and the next bullet
- * 
- * It's target:
- * 
- * After the last bullet hit something or 
- * go out of the map,AI must wait 400ms
- * for the next shoot
- */
-class ShootLimit extends Thread
-{
-	Tank T;
-	ShootLimit(){T=null;}
-	ShootLimit(Tank T){this.T=T;}
-	
-	public void run()
-	{
-		try{
-			sleep(400);
-		}catch(InterruptedException e){
-			System.out.println(e);
-		}
-		T.shootLimit=false;
-	}
 }
 
 class Tank extends Thread {
@@ -63,6 +55,7 @@ class Tank extends Thread {
 	 * 
 	 * randomStep: the AI random opeartation times at the beginning 
 	 * after the randomStep
+	 * randomStep=MAXSTEP
 	 * then the AI will select the shortest path to the HQ
 	 * 
 	 * nowStep: record the AI's next target position to arrive 
@@ -105,8 +98,6 @@ class Tank extends Thread {
 	
 	Tank(int x,int y,int id,int dir,Map M,int num,int speed, int player_life)
 	{
-		Saint s=new Saint(x,y);
-		M.saints.add(s);
 		//s.entertainment();
 		
 		valid = 1;
@@ -325,7 +316,7 @@ class Tank extends Thread {
 			 * arrive the HQ
 			 * random walk near the target
 			 */
-			if (M.nearHQ((x-10)/20, (y-30)/20))
+			if (Map.nearHQ((x-10)/20, (y-30)/20))
 			{
 				pathRecord.clear();
 				nowStep=-1;
@@ -613,18 +604,15 @@ class Tank extends Thread {
 		valid=0;
 		Bomb b=new Bomb(x,y);
 		M.bombs.add(b);
-		if (player_life>0)
+		player_life=player_life-1;
+		M.deleteTank(this);
+		if (num==10)
 		{
-			player_life=player_life-1;
-			M.deleteTank(this);
-			if (num==10) M.newTank(9*20+10,24*20+30,6,0,M,10,4,player_life);
+			if (player_life>0)
+				M.NewTank(190,510,6,0,M,10,4,player_life);
+			else
+				M.gameOver(false);
 		}
-		if (player_life<=0) 
-		{		
-			M.deleteTank(this);//really~die die die
-			if (num==10) M.gameOver();
-		}
-		//System.out.println(player_life);
 	}
 	
 	/*
@@ -647,6 +635,33 @@ class Tank extends Thread {
 	 */
 	void changeShootLimit()
 	{
+		
+		/*
+		 * ShootLimit: used for slowing down 
+		 * AI tank's Bullet Interval between the
+		 * last bullet and the next bullet
+		 * 
+		 * It's target:
+		 * 
+		 * After the last bullet hit something or 
+		 * go out of the map,AI must wait 400ms
+		 * for the next shoot
+		 */
+		class ShootLimit extends Thread
+		{
+			Tank T;
+			ShootLimit(Tank T){this.T=T;}
+			
+			public void run()
+			{
+				try{
+					sleep(500);
+				}catch(InterruptedException e){
+					System.out.println(e);
+				}
+				T.shootLimit=false;
+			}
+		}
 		if (isPlayer()) shootLimit=false;
 		else
 		{
@@ -688,16 +703,14 @@ class Saint
 {
     int x,y;
     int life=4;
-    final static int saintPeriod=5;
+    final static int saintPeriod=6;
     int period=saintPeriod;
-    boolean isLive=true;
-    //volatile boolean entertainment=true;
+    volatile boolean isLive=true;
     
     public Saint(int x,int y)
     {
         this.x=x;
         this.y=y;
-        //entertainment=true;
     }
     
     public void lifeDown()
@@ -710,7 +723,6 @@ class Saint
     			else 
     			{
     				isLive = false;
-    				//entertainment=false;
     			}
     	}
     }
@@ -797,8 +809,8 @@ class Bullet extends Thread
 	     int j=(int)Math.floor(1.0*(x+xcoordinateDec[dir]-10)/20.0);
          int i=(int)Math.floor(1.0*(y+ycoordinateDec[dir]-30)/20.0);
          i=check(i);j=check(j);
-         if (M.isGrass(M.isRiver(M.map[i][j]))>0 || 
-        	M.isGrass(M.isRiver(M.map[i+icoordinateInc[dir]][j+jcoordinateInc[dir]]))>0)
+         if (Map.isGrass(Map.isRiver(M.map[i][j]))>0 || 
+        	Map.isGrass(Map.isRiver(M.map[i+icoordinateInc[dir]][j+jcoordinateInc[dir]]))>0)
         	 dieStatusChange();//打到建筑物
          
          Tank tmp=null;
@@ -900,7 +912,7 @@ class Map extends Frame{
 	MainThread thread;
 	volatile int LeftTank = 10;
 	volatile boolean bStop;
-	volatile boolean Over;
+	volatile boolean Over,hqDestory;
 	
 	Vector<Bomb> bombs = new Vector<Bomb>();
 	Vector <Saint> saints = new Vector<Saint>();
@@ -941,17 +953,20 @@ class Map extends Frame{
 			}//Initialize born images
 			
 			int new_tank_time = 5*1000,cnt = 10;
-			Tank my_tank = new Tank(9*20+10,24*20+30,6,0,Map.this,cnt++,5,3);
+			/*Tank my_tank = new Tank(190,510,6,0,Map.this,cnt++,5,3);
 			synchronized(TankLst)
 			{
 				TankLst.add(my_tank);
 			}
 			Thread th = new Thread(my_tank);
-			th.start();
-			newTank(10,30,cnt++);newTank(24*20+10,30,cnt++);newTank(12*20+10,30,cnt++);
+			th.start();*/
+			NewTank(190,510,6,0,Map.this,cnt++,5,3);
+			NewTank(10,30,cnt++);
+			NewTank(490,30,cnt++);
+			NewTank(250,30,cnt++);
 			while(! bStop){
 				repaint();
-					if(LeftTank > 0 && new_tank_time == 0)
+					if(LeftTank > 0 && new_tank_time <= 0)
 					{
 						new_tank_time = 5*1000;
 						switch(LeftTank%3)
@@ -959,21 +974,21 @@ class Map extends Frame{
 							case 0:
 									if(! Tank.overlap(cnt,10,30,TankLst))
 									{
-											newTank(10,30,cnt);
+											NewTank(10,30,cnt);
 											cnt++;
 											break;					
 									}
 							case 1:
 									if(! Tank.overlap(cnt,24*20+10,30,TankLst))
 									{
-											newTank(24*20+10,30,cnt);
+											NewTank(24*20+10,30,cnt);
 											cnt++;
 											break;
 									}
 							case 2:
 									if(! Tank.overlap(cnt,12*20+10,30,TankLst))
 									{
-											newTank(12*20+10,30,cnt);
+											NewTank(12*20+10,30,cnt);
 											cnt++;
 											break;
 									}
@@ -1329,10 +1344,23 @@ class Map extends Frame{
 		}
 		else
 		{
-			String dir=path+"/destory.gif";
-			ImageIcon icon=new ImageIcon(dir);
-			Image images=icon.getImage();
-			g.drawImage(images, 250, 510, 40,40,this);
+			String dir;
+			ImageIcon icon;
+			Image images;
+			if (hqDestory)
+			{
+				dir=path+"/destory.gif";
+				icon=new ImageIcon(dir);
+				images=icon.getImage();
+				g.drawImage(images, 250, 510, 40,40,this);
+			}
+			else
+			{
+				dir=path+"/symbol.gif";
+				icon=new ImageIcon(dir);
+				images=icon.getImage();
+				g.drawImage(images, 250, 510, 40,40,this);
+			}
 			dir=path+"/over.gif";
 			icon=new ImageIcon(dir);
 			images =icon.getImage();
@@ -1396,13 +1424,13 @@ class Map extends Frame{
 		}
 	}
 	
-	int isGrass(int n)
+	final static int isGrass(int n)
 	{
 		if (n==4)return 0;
 			else return n; 
 	}
 	
-	int isRiver(int n)
+	final static int isRiver(int n)
 	{
 		if (n==3)return 0;
 			else return n; 
@@ -1472,7 +1500,7 @@ class Map extends Frame{
 	/*
 	 * map (x,y) is out of border?
 	 */
-	boolean out(int x,int y)
+	final static boolean out(int x,int y)
 	{
 		if (x<0||x>=25)return true;
 		if (y<0||y>=25)return true;
@@ -1492,7 +1520,7 @@ class Map extends Frame{
 	/*
 	 * map[x][y] is close to the HQ?
 	 */
-	boolean nearHQ(int x,int y)
+	final static boolean nearHQ(int x,int y)
 	{
 		if (x==9&&y==24)return true;
 		if (x==15&&y==24)return true;
@@ -1500,27 +1528,14 @@ class Map extends Frame{
 		return false;
 	}
 	
-	int attackHQ(int x,int y)
+	final static int attackHQ(int x,int y)
 	{
 		if (x==9&&y==24)return 3;
 		if (x==15&&y==24)return 2;
 		if (y==21&&x==12)return 1;
 		return 0;
 	}
-	
-	/*
-	boolean overlap(int x,int y)
-	{
-		synchronized(TankLst)
-		{
-			for(Tank tank : TankLst){
-				if(Math.abs(tank.x-x)<45 && Math.abs(tank.y-y)<45)
-					return true;
-			}
-			return false;
-		}
-	}*/
-	
+
 	void newTank(int x, int y, int id, int dir, Map M, int num, int speed, int player_life)
 	{
 		Tank new_tank = new Tank(x,y,id,dir,this,num,speed,player_life);//speed=4
@@ -1542,6 +1557,56 @@ class Map extends Frame{
 		Thread new_th = new Thread(new_tank);
 		new_th.start();
 		LeftTank--;
+	}
+	
+	void NewTank(int x,int y,int cnt)
+	{
+		class NewTank1 extends Thread
+		{
+			int x,y,cnt;
+			Saint s;
+			NewTank1(int x,int y,int cnt,Saint s)
+			{
+				this.x=x;this.y=y;this.cnt=cnt;
+				this.s=s;
+			}
+			public void run()
+			{
+				while (s.isLive==true);
+				newTank(x,y,cnt);
+			}
+		}
+		Saint s=new Saint(x,y);
+		saints.add(s);
+		NewTank1 new_n=new NewTank1(x,y,cnt,s);
+		Thread new_t=new Thread(new_n);
+		new_t.start();
+	}
+	
+	void NewTank(int x, int y, int id, int dir, Map M, int num, int speed, int player_life)
+	{
+		class NewTank1 extends Thread
+		{
+			int x,y,id,dir,num,speed,player_life;
+			Map M;
+			Saint s;
+			NewTank1(int x, int y, int id, int dir, Map M, int num, int speed, int player_life,Saint s)
+			{
+				this.x=x;this.y=y;this.id=id;this.dir=dir;
+				this.M=M;this.num=num;this.speed=speed;
+				this.player_life=player_life;this.s=s;
+			}
+			public void run()
+			{
+				while (s.isLive==true);
+				newTank(x,y,id,dir,M,num,speed,player_life);
+			}
+		}
+		Saint s=new Saint(x,y);
+		saints.add(s);
+		NewTank1 new_n=new NewTank1(x,y,id,dir,M,num,speed,player_life,s);
+		Thread new_t=new Thread(new_n);
+		new_t.start();
 	}
 	
 	/*
@@ -1582,7 +1647,7 @@ class Map extends Frame{
 		j=check(j);
 		if(map[i][j] == 1) map[i][j] = 0;
 		else if(map[i][j] == 2) map[i][j] = 2;
-		else if(map[i][j] == 5) gameOver();
+		else if(map[i][j] == 5) gameOver(true);
 	 }
 	
 	class GameOverTimeCount extends Thread
@@ -1604,9 +1669,15 @@ class Map extends Frame{
 		}
 	}
 	
-	void gameOver()
+	void gameOver(boolean destory)
 	{
+		if (Over)
+		{
+			hqDestory=destory|hqDestory;
+			return;
+		}
 		Over=true;
+		hqDestory=destory;
 		GameOverTimeCount count=new GameOverTimeCount(this);
 		Thread new_t=new Thread(count);
 		new_t.start();
