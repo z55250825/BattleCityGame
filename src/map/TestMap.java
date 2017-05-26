@@ -659,6 +659,7 @@ class Bomb
 	int x,y;
 	//炸弹的生命
 	int life = 8;
+	int period=10;
 	boolean isLive = true;
 	public Bomb(int x,int y)
 	{
@@ -858,6 +859,10 @@ class Map extends Frame{
 	
 	class MainThread extends Thread {
 		public void run(){
+			/*
+			 * editor mode on
+			 * Map editor 
+			 */
 			if (editorMode==true)
 			{
 				while (!bStop)
@@ -871,12 +876,12 @@ class Map extends Frame{
 				}
 				return;
 			}
+			
 			ImageIcon icon = new ImageIcon();
 			for (int i=0;i<8;i++)
 			{
 				icon=new ImageIcon("pictures/blast"+(i+1)+".gif");
 				blastImage[i]=icon.getImage();
-				//if (blastImage[i]!=null) System.out.println("Truly get"+i+"\n");
 			}//Initialize blast images
 			
 			int new_tank_time = 5*1000,cnt = 10;
@@ -918,17 +923,37 @@ class Map extends Frame{
 		}
 	}
 	
+	/*
+	 * editorX,editorY: the editor position in editor map
+	 * 
+	 * editorMode: true=Mapeditor mode 
+	 * 			   flase=game mode
+	 * 
+	 * flashTankTime: use for the tank flash in editor
+	 * Mode (tank appears and disappears in cycle to 
+	 * suggest the editor position)
+	 * 
+	 * halfFlashTime: the half of flashTankTime
+	 * tank appears halfFlashTime units time and
+	 * disappears halfFlashTime units time
+	 * 
+	 * flashTime: record the now time to decide whether
+	 * the tank is appeared or disappeared
+	 * 
+	 */
 	volatile int editorX,editorY;
 	boolean editorMode;
 	final static int flashTankTime=50;
 	final static int halfFlashTankTime=flashTankTime/2;
 	int flashTime=flashTankTime;
+	int findState;
 	
 	/*
-	 * if use Map() means map editor mode
+	 * if use Map() then map editor mode
 	 */
 	Map(){
 		editorMode=true;
+		findState=0;
 		editorX=0;editorY=0;
 		
 		for (int i=0;i<26;++i)
@@ -954,10 +979,15 @@ class Map extends Frame{
 		this.setSize(650, 560);
 		this.setBackground(Color.black);
 		this.setVisible(true);
-		thread = new MainThread();
+		thread=new MainThread();
 		thread.start();
 	}
 	
+	/*
+	 * judge whether the KeyboardCode is UP,DOWN,LEFT,RIGHT
+	 * if it is ,return the corresponding direction number
+	 * 		else return -1
+	 */
 	int isDirectionCode(int KeyboardCode)
 	{
 		if (KeyboardCode==KeyEvent.VK_UP)return 0;
@@ -970,6 +1000,18 @@ class Map extends Frame{
 	final static int editorDx[]={-2,2,0,0};
 	final static int editorDy[]={0,0,-2,2};
 	
+	/*
+	 * editorEvent:
+	 *  receive the KeyEvent and deal with it
+	 *  according to the KeyboardCode
+	 *  
+	 *  if it's DirectionCode,then move editor position
+	 *  
+	 *  if it's S,then save the editor map
+	 *  
+	 *  if it's Space,then change the texture
+	 *  on the editor position
+	 */
 	void editorEvent(int KeyboardCode)
 	{
 		int tmp;
@@ -991,22 +1033,51 @@ class Map extends Frame{
 		}
 	}
 	
+	/*
+	 * editorState: used for edit map
+	 * 2x2 grids's State saved in a 4-digit number
+	 * 1234 means that the left up grid is 1,
+	 * 				   the right up grid is 2,
+	 * 				   the left down grid is 3,
+	 * 				   the right down grid is 4.
+	 */
 	final static int editorState[]={0,1111,1100,1010,11,101,2222,2200,2020,22,202,
 			3333,4444,1122,1212,2211,2121};
 	final static int editorStateNum=17;
 	
+	/*
+	 * calculate the State number of the 2x2 grids
+	 * when the left up grid is (x,y)
+	 */
 	int editorCalculateState(int x,int y)
 	{
 		return map[x][y]*1000+map[x][y+1]*100+map[x+1][y]*10+map[x+1][y+1];
 	}
 	
+	/*
+	 * used for changing State of 
+	 * the 2x2grids ((editorX,editorY) is the left up grid)
+	 * '
+	 */
 	void editorChangeState()
 	{
+		//HeadQuarter Texture is always 5
 		if (editorX==24&&editorY==12)return;
+		
 		int nowState=editorCalculateState(editorX,editorY);
-		int findState=0;
-		for (;findState<editorStateNum;++findState)
-			if (editorState[findState]==nowState)break;
+		int nowFindState=0;
+		for (;nowFindState<editorStateNum;++nowFindState)
+			if (editorState[nowFindState]==nowState)
+				break;
+		if (nowFindState!=findState)
+		{
+			int newState=editorState[findState];
+			map[editorX][editorY]=newState/1000;
+			map[editorX][editorY+1]=(newState/100)%10;
+			map[editorX+1][editorY]=(newState/10)%10;
+			map[editorX+1][editorY+1]=newState%10;
+			return;
+		}
 		findState=(findState+1)%editorStateNum;
 		int newState=editorState[findState];
 		map[editorX][editorY]=newState/1000;
@@ -1431,6 +1502,6 @@ class Map extends Frame{
 public class TestMap {
 	final static int freshTime=25;
 	public static void main(String[] args) {
-		Map M = new Map();
+		Map M = new Map(10);
 	}
 }
