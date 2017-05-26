@@ -83,6 +83,7 @@ class Tank extends Thread {
 	 */
 	volatile int valid, x, y, dir;
 	int id, num, speed;
+	int player_life;
 	final static int MAXSTEP=200;
 	int randomStep=MAXSTEP;
 	int nowStep=-1;
@@ -102,7 +103,7 @@ class Tank extends Thread {
 	
 	Tank(){}
 	
-	Tank(int x,int y,int id,int dir,Map M,int num,int speed)
+	Tank(int x,int y,int id,int dir,Map M,int num,int speed, int player_life)
 	{
 		valid = 1;
 		this.x = x;
@@ -112,10 +113,12 @@ class Tank extends Thread {
 		this.M = M;
 		this.num = num;
 		this.speed = speed;
+		if (this.num==10) this.player_life=player_life;//initialize player_life
+		else player_life=1;
 		dx=new int[]{0,0,-speed,speed};
 		dy=new int[]{-speed,speed,0,0};
 		this.shootLimit=false;
-		for (int i=0;i<4;++i)moveFlag[i]=false;
+		for (int i=0;i<4;++i) moveFlag[i]=false;
 	}
 	
 	/*
@@ -136,7 +139,7 @@ class Tank extends Thread {
 					System.out.println(e);
 				}
 				if (num>10)ai_move();
-					else  player_move(); 
+					else  player_move();
 			}
 			return;
 		}
@@ -606,8 +609,18 @@ class Tank extends Thread {
 		valid=0;
 		Bomb b=new Bomb(x,y);
 		M.bombs.add(b);
-		//System.out.println("New bomb created\n");
-		M.deleteTank(this);
+		if (player_life>0)
+		{
+			player_life=player_life-1;
+			M.deleteTank(this);
+			if (num==10) M.newTank(9*20+10,24*20+30,6,0,M,10,4,player_life);
+		}
+		if (player_life<=0) 
+		{		
+			M.deleteTank(this);//really~die die die
+			if (num==10) M.gameOver();
+		}
+		//System.out.println(player_life);
 	}
 	
 	/*
@@ -630,13 +643,13 @@ class Tank extends Thread {
 	 */
 	void changeShootLimit()
 	{
-		if (isPlayer())shootLimit=false;
-			else
-			{
-				ShootLimit tmp=new ShootLimit(this);
-				Thread new_t=new Thread(tmp);
-				new_t.start();
-			}
+		if (isPlayer()) shootLimit=false;
+		else
+		{
+			ShootLimit tmp=new ShootLimit(this);
+			Thread new_t=new Thread(tmp);
+			new_t.start();
+		}
 	}
 	
 }
@@ -736,7 +749,8 @@ class Bullet extends Thread
 	     int j=(int)Math.floor(1.0*(x+xcoordinateDec[dir]-10)/20.0);
          int i=(int)Math.floor(1.0*(y+ycoordinateDec[dir]-30)/20.0);
          i=check(i);j=check(j);
-         if (M.map[i][j]>0 || M.map[i+icoordinateInc[dir]][j+jcoordinateInc[dir]]>0)
+         if (M.isGrass(M.isRiver(M.map[i][j]))>0 || 
+        	M.isGrass(M.isRiver(M.map[i+icoordinateInc[dir]][j+jcoordinateInc[dir]]))>0)
         	 dieStatusChange();//打到建筑物
          
          Tank tmp=null;
@@ -843,14 +857,6 @@ class Map extends Frame{
 	
 	class MainThread extends Thread {
 		public void run(){
-			if (isEditor)
-			{
-				while (!bStop)
-				{
-					
-				}
-				return;
-			}
 			ImageIcon icon = new ImageIcon();
 			for (int i=0;i<8;i++)
 			{
@@ -860,7 +866,7 @@ class Map extends Frame{
 			}//Initialize blast images
 			
 			int new_tank_time = 5*1000,cnt = 10;
-			Tank my_tank = new Tank(9*20+10,24*20+30,6,0,Map.this,cnt++,5);
+			Tank my_tank = new Tank(9*20+10,24*20+30,6,0,Map.this,cnt++,5,3);
 			synchronized(TankLst)
 			{
 				TankLst.add(my_tank);
@@ -897,67 +903,17 @@ class Map extends Frame{
 			}
 		}
 	}
-	
-	volatile int editorCoordinatex,editorCoordinatey;
-	final static int editorCoordinatedx[]={0,0,-1,1};
-	final static int editorCoordinatedy[]={-1,1,0,0};
-	int editorMap[][];
-	boolean isEditor;
-	/*
-	 * if use Map() to construct 
-	 * it's a map editor
-	 */
-	Map()
-	{
-		editorMap=new int[26][26];
-		isEditor=true;
-		for (int i=0;i<26;++i)
-			for (int j=0;j<26;++j)
-				map[i][j]=0;
-		
-		editorCoordinatex=0;
-		editorCoordinatey=0;
-		
-		this.addWindowListener(new WindowAdapter(){
-			public void windowClosing(WindowEvent e){
-				bStop=true;
-				System.exit(0);
-			}
-		});
-		
-		this.addKeyListener(new KeyAdapter(){
-		});
-		
-		this.setSize(650, 560);
-		this.setBackground(Color.black);
-		this.setVisible(true);
-		thread = new MainThread();
-		thread.start();
-	}
-	
-	void saveEditorMap()
-	{
-		try{
-			FileWriter out=new FileWriter("Maps/Map0.txt");
-			BufferedWriter wt=new BufferedWriter(out);
-			for (int i=0;i<26;++i)
-			{
-				for (int j=0;j<26;++j)
-					wt.write(editorMap[i][j]+" ");
-				wt.newLine();
-			}
-			wt.close();
-		}catch(IOException e){
-			System.out.print(e);
-		}
-	}
-	
+	Map(){}
 	Map(int level){
-		isEditor=false;
 		try{
 			File f = new File("Maps");
 			File fs[] = f.listFiles();
-			FileReader in = new FileReader(fs[level - 1]);
+			File mission=null;
+			for (File F : fs){
+				if (F.getName().equals("Map"+level+".txt"))
+					mission=F;
+			}
+			FileReader in = new FileReader(mission);
 			BufferedReader rd = new BufferedReader(in);
 			for(int i=0;i<26;i++){
 				String str[] = rd.readLine().split(" ");
@@ -1008,7 +964,7 @@ class Map extends Frame{
 		thread = new MainThread();
 		thread.start();
 	}
-
+	
 	public void paint(Graphics g){
 		super.paint(g);
 		g.setColor(Color.white);
@@ -1017,9 +973,12 @@ class Map extends Frame{
 		g.drawLine(530, 30, 530, 550);
 		g.drawLine(10, 550, 530, 550);
 		String path = "pictures";
+		paintTank(g);
+		paintBullet(g);
+		paintBlast(g);
 		for(int i=0;i<26;i++){
 			for(int j=0;j<26;j++){
-				if(map[i][j] == 1 || map[i][j] == 2){
+				if(map[i][j] != 0 && map[i][j] != 5){
 					String dir = path + "/" + map[i][j] + ".gif";
 					ImageIcon icon = new ImageIcon(dir);
 					Image images = icon.getImage();
@@ -1031,9 +990,6 @@ class Map extends Frame{
 		ImageIcon icon = new ImageIcon(dir);
 		Image images = icon.getImage();
 		g.drawImage(images, 10+12*20, 30+24*20, 40, 40,this);
-		paintTank(g);
-		paintBullet(g);
-		paintBlast(g);
 		//print();
 	}
 	
@@ -1080,8 +1036,21 @@ class Map extends Frame{
 		}
 	}
 	
+	int isGrass(int n)
+	{
+		if (n==4)return 0;
+			else return n; 
+	}
+	
+	int isRiver(int n)
+	{
+		if (n==3)return 0;
+			else return n; 
+	}
+	
 	synchronized int getMapNum(int i,int j){
-		return map[i][j]+map[i+1][j]+map[i][j+1]+map[i+1][j+1];
+		return isGrass(map[i][j])+isGrass(map[i+1][j])
+		+isGrass(map[i][j+1])+isGrass(map[i+1][j+1]);
 	}
 
 	/*
@@ -1191,9 +1160,20 @@ class Map extends Frame{
 		}
 	}*/
 	
+	void newTank(int x, int y, int id, int dir, Map M, int num, int speed, int player_life)
+	{
+		Tank new_tank = new Tank(x,y,id,dir,this,num,speed,player_life);//speed=4
+		synchronized(TankLst)
+		{
+			TankLst.add(new_tank);
+		}
+		Thread new_th = new Thread(new_tank);
+		new_th.start();
+	}
+	
 	void newTank(int x,int y, int cnt)
 	{
-		Tank new_tank = new Tank(x,y,7,1,this,cnt,4);
+		Tank new_tank = new Tank(x,y,7,1,this,cnt,4,3);
 		synchronized(TankLst)
 		{
 			TankLst.add(new_tank);
@@ -1253,6 +1233,6 @@ class Map extends Frame{
 public class TestMap {
 	final static int freshTime=25;
 	public static void main(String[] args) {
-		Map M = new Map(1);
+		Map M = new Map(2);
 	}
 }
