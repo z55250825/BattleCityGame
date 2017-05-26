@@ -5,6 +5,7 @@ import java.awt.event.*;
 import java.io.*;
 import java.util.*;
 import javax.swing.*;
+import sun.audio.*;
 
 /*
  * important parameter
@@ -171,6 +172,7 @@ class Tank extends Thread {
 	 */
 	void player_move()
 	{
+		if (M.Over)return;
 		int dir_tmp=findNextDirection();
 		if (dir_tmp==-1)return;
 		changeState(dir_tmp);
@@ -609,7 +611,7 @@ class Tank extends Thread {
 		if (num==10)
 		{
 			if (player_life>0)
-				M.NewTank(190,510,6,0,M,10,4,player_life);
+				M.NewTank(190,510,6,0,M,10,5,player_life);
 			else
 				M.gameOver(false);
 		}
@@ -1188,6 +1190,13 @@ class Map extends Frame{
 	}
 	
 	Map(int level){
+		class MusicPlayer extends Thread
+		{
+			public void run()
+			{
+				Map.playStartMusic();
+			}
+		}
 		editorMode=false;
 		Over=false;
 		try{
@@ -1252,6 +1261,9 @@ class Map extends Frame{
 		this.setVisible(true);
 		thread = new MainThread();
 		thread.start();
+		MusicPlayer mp=new MusicPlayer();
+		Thread new_t=new Thread(mp);
+		new_t.start();
 	}
 	
 	void editorPaint(Graphics g)
@@ -1682,11 +1694,22 @@ class Map extends Frame{
 		Thread new_t=new Thread(count);
 		new_t.start();
 	}
+	
+	final static void playStartMusic()
+	{
+		try{
+			FileInputStream fileau=new FileInputStream("music/start.wav");
+			AudioStream as=new AudioStream(fileau);
+			AudioPlayer.player.start(as);
+		}catch(Exception e){
+			e.printStackTrace();
+		}
+	}
 }
 
 public class TestMap {
 	final static int freshTime=25;
 	public static void main(String[] args) {
-		Map M = new Map(10);
+		Map M = new Map(7);
 	}
 }
