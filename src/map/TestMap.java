@@ -972,7 +972,6 @@ class Map extends Frame{
 	
 	void editorEvent(int KeyboardCode)
 	{
-		System.out.println("OK");
 		int tmp;
 		if ((tmp=isDirectionCode(KeyboardCode))!=-1)
 		{
@@ -1105,15 +1104,6 @@ class Map extends Frame{
 			for (int j=0;j<26;++j)
 				if (map[i][j]!=0&&map[i][j]!=5)
 				{
-					if (map[i][j]==4){
-						if ((i&1)==0&&(j&1)==0){
-							String dir=path+"/"+map[i][j]+".gif";
-							ImageIcon icon=new ImageIcon(dir);
-							Image images=icon.getImage();
-							g.drawImage(images, 10+j*20, 30+i*20, 40,40,this);
-						}
-						continue;
-					}
 					String dir = path + "/" + map[i][j] + ".gif";
 					ImageIcon icon = new ImageIcon(dir);
 					Image images = icon.getImage();
@@ -1169,15 +1159,6 @@ class Map extends Frame{
 		for(int i=0;i<26;i++){
 			for(int j=0;j<26;j++){
 				if(map[i][j] != 0 && map[i][j] != 5 &&map[i][j] !=3){
-					if (map[i][j]==4){
-						if ((i&1)==0&&(j&1)==0){
-							String dir=path+"/"+map[i][j]+".gif";
-							ImageIcon icon=new ImageIcon(dir);
-							Image images=icon.getImage();
-							g.drawImage(images, 10+j*20, 30+i*20, 40,40,this);
-						}
-						continue;
-					}
 					String dir = path + "/" + map[i][j] + ".gif";
 					ImageIcon icon = new ImageIcon(dir);
 					Image images = icon.getImage();
@@ -1450,6 +1431,6 @@ class Map extends Frame{
 public class TestMap {
 	final static int freshTime=25;
 	public static void main(String[] args) {
-		Map M = new Map(5);
+		Map M = new Map();
 	}
 }
