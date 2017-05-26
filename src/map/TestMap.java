@@ -848,6 +848,7 @@ class Map extends Frame{
 	volatile int map[][] = new int[26][26];
 	Vector<Tank> TankLst = new Vector<Tank>();
 	Vector<Bullet> BulletLst = new Vector<Bullet>();
+	Vector<Path> SeaCoordinate=new Vector<Path>();
 	MainThread thread;
 	volatile int LeftTank = 10;
 	volatile boolean bStop;
@@ -857,6 +858,19 @@ class Map extends Frame{
 	
 	class MainThread extends Thread {
 		public void run(){
+			if (editorMode==true)
+			{
+				while (!bStop)
+				{
+					repaint();
+					try{
+						sleep(TestMap.freshTime);
+					}catch(InterruptedException e){
+						System.out.println(e);
+					}
+				}
+				return;
+			}
 			ImageIcon icon = new ImageIcon();
 			for (int i=0;i<8;i++)
 			{
@@ -903,8 +917,125 @@ class Map extends Frame{
 			}
 		}
 	}
-	Map(){}
+	
+	volatile int editorX,editorY;
+	boolean editorMode;
+	final static int flashTankTime=50;
+	final static int halfFlashTankTime=flashTankTime/2;
+	int flashTime=flashTankTime;
+	
+	/*
+	 * if use Map() means map editor mode
+	 */
+	Map(){
+		editorMode=true;
+		editorX=0;editorY=0;
+		
+		for (int i=0;i<26;++i)
+			for (int j=0;j<26;++j)
+				map[i][j]=0;
+		
+		map[24][12]=map[24][13]=map[25][12]=map[25][13]=5;
+		map[23][11]=map[24][11]=map[25][11]=map[23][12]=map[23][13]
+				=map[23][14]=map[24][14]=map[25][14]=1;
+		this.addWindowListener(new WindowAdapter(){
+			public void windowClosing(WindowEvent e){
+				bStop = true;
+				System.exit(0);
+			}
+		});
+		
+		this.addKeyListener(new KeyAdapter(){
+			public void keyPressed(KeyEvent e){
+				editorEvent(e.getKeyCode());
+			}
+		});
+		
+		this.setSize(650, 560);
+		this.setBackground(Color.black);
+		this.setVisible(true);
+		thread = new MainThread();
+		thread.start();
+	}
+	
+	int isDirectionCode(int KeyboardCode)
+	{
+		if (KeyboardCode==KeyEvent.VK_UP)return 0;
+		if (KeyboardCode==KeyEvent.VK_DOWN)return 1;
+		if (KeyboardCode==KeyEvent.VK_LEFT)return 2;
+		if (KeyboardCode==KeyEvent.VK_RIGHT)return 3;
+		return -1;
+	}
+	
+	final static int editorDx[]={-2,2,0,0};
+	final static int editorDy[]={0,0,-2,2};
+	
+	void editorEvent(int KeyboardCode)
+	{
+		System.out.println("OK");
+		int tmp;
+		if ((tmp=isDirectionCode(KeyboardCode))!=-1)
+		{
+			editorX=(editorX+editorDx[tmp]+26)%26;
+			editorY=(editorY+editorDy[tmp]+26)%26;
+			return;
+		}
+		if (KeyboardCode==KeyEvent.VK_S)
+		{
+			saveEditMap();
+			return;
+		}
+		if (KeyboardCode==KeyEvent.VK_SPACE)
+		{
+			editorChangeState();
+			return;
+		}
+	}
+	
+	final static int editorState[]={0,1111,1100,1010,11,101,2222,2200,2020,22,202,
+			3333,4444};
+	final static int editorStateNum=13;
+	
+	int editorCalculateState(int x,int y)
+	{
+		return map[x][y]*1000+map[x][y+1]*100+map[x+1][y]*10+map[x+1][y+1];
+	}
+	
+	void editorChangeState()
+	{
+		if (editorX==24&&editorY==12)return;
+		int nowState=editorCalculateState(editorX,editorY);
+		int findState=0;
+		for (;findState<editorStateNum;++findState)
+			if (editorState[findState]==nowState)break;
+		findState=(findState+1)%editorStateNum;
+		int newState=editorState[findState];
+		map[editorX][editorY]=newState/1000;
+		map[editorX][editorY+1]=(newState/100)%10;
+		map[editorX+1][editorY]=(newState/10)%10;
+		map[editorX+1][editorY+1]=newState%10;
+		return;
+	}
+	
+	void saveEditMap()
+	{
+		try{
+			FileWriter out=new FileWriter("Maps/Maps0.txt");
+			BufferedWriter wt=new BufferedWriter(out);
+			for (int i=0;i<26;++i)
+			{
+				for (int j=0;j<26;++j)
+					wt.write(map[i][j]+" ");
+				wt.newLine();
+			}
+			wt.close();
+		}catch(IOException e){
+			System.out.print(e);
+		}
+	}
+	
 	Map(int level){
+		editorMode=false;
 		try{
 			File f = new File("Maps");
 			File fs[] = f.listFiles();
@@ -919,6 +1050,8 @@ class Map extends Frame{
 				String str[] = rd.readLine().split(" ");
 				for(int j=0;j<26;j++){
 					map[i][j] = Integer.parseInt(str[j]);
+					if (map[i][j]==3)
+						SeaCoordinate.add(new Path(i,j));
 				}
 			}
 			rd.close();
@@ -965,6 +1098,50 @@ class Map extends Frame{
 		thread.start();
 	}
 	
+	void editorPaint(Graphics g)
+	{
+		String path = "pictures";
+		for (int i=0;i<26;++i)
+			for (int j=0;j<26;++j)
+				if (map[i][j]!=0&&map[i][j]!=5)
+				{
+					if (map[i][j]==4){
+						if ((i&1)==0&&(j&1)==0){
+							String dir=path+"/"+map[i][j]+".gif";
+							ImageIcon icon=new ImageIcon(dir);
+							Image images=icon.getImage();
+							g.drawImage(images, 10+j*20, 30+i*20, 40,40,this);
+						}
+						continue;
+					}
+					String dir = path + "/" + map[i][j] + ".gif";
+					ImageIcon icon = new ImageIcon(dir);
+					Image images = icon.getImage();
+					g.drawImage(images, 10+j*20, 30+i*20, 20, 20,this);
+				}
+		String dir = path + "/"+"symbol.gif";
+		ImageIcon icon = new ImageIcon(dir);
+		Image images = icon.getImage();
+		g.drawImage(images, 10+12*20, 30+24*20, 40, 40,this);
+		if (editorMode)
+		{
+			if (flashTime>=halfFlashTankTime)
+			{
+				dir=path+"/"+"60.gif";
+				icon=new ImageIcon(dir);
+				images=icon.getImage();
+				g.drawImage(images,	10+editorY*20, 30+editorX*20, 40,40,this);
+				flashTime--;
+			}
+			else
+			{
+				flashTime--;
+				if (flashTime==-1)
+					flashTime=flashTankTime;
+			}
+		}
+	}
+	
 	public void paint(Graphics g){
 		super.paint(g);
 		g.setColor(Color.white);
@@ -972,17 +1149,19 @@ class Map extends Frame{
 		g.drawLine(10, 30, 10, 550);
 		g.drawLine(530, 30, 530, 550);
 		g.drawLine(10, 550, 530, 550);
+		if (editorMode==true)
+		{
+			editorPaint(g);
+			return;
+		}
 		String path = "pictures";
-		for (int i=0;i<26;++i){
-			for (int j=0;j<26;++j){
-				if (map[i][j]==3)
-				{
-					String dir=path+"/"+map[i][j]+".gif";
-					ImageIcon icon=new ImageIcon(dir);
-					Image images=icon.getImage();
-					g.drawImage(images, 10+j*20, 30+i*20, 20,20,this);
-				}
-			}
+		for (Path Sea : SeaCoordinate)
+		{
+			int i=Sea.x,j=Sea.y;
+			String dir=path+"/3.gif";
+			ImageIcon icon=new ImageIcon(dir);
+			Image images=icon.getImage();
+			g.drawImage(images, 10+j*20, 30+i*20, 20,20,this);
 		}
 		paintTank(g);
 		paintBullet(g);
@@ -990,10 +1169,8 @@ class Map extends Frame{
 		for(int i=0;i<26;i++){
 			for(int j=0;j<26;j++){
 				if(map[i][j] != 0 && map[i][j] != 5 &&map[i][j] !=3){
-					if (map[i][j]==4)
-					{
-						if ((i&1)==0&&(j&1)==0)
-						{
+					if (map[i][j]==4){
+						if ((i&1)==0&&(j&1)==0){
 							String dir=path+"/"+map[i][j]+".gif";
 							ImageIcon icon=new ImageIcon(dir);
 							Image images=icon.getImage();
@@ -1012,6 +1189,23 @@ class Map extends Frame{
 		ImageIcon icon = new ImageIcon(dir);
 		Image images = icon.getImage();
 		g.drawImage(images, 10+12*20, 30+24*20, 40, 40,this);
+		if (editorMode)
+		{
+			if (flashTime>=halfFlashTankTime)
+			{
+				dir=path+"/"+"60.gif";
+				icon=new ImageIcon(dir);
+				images=icon.getImage();
+				g.drawImage(images,	10+editorY*20, 30+editorX*20, 40,40,this);
+				flashTime--;
+			}
+			else
+			{
+				flashTime--;
+				if (flashTime==-1)
+					flashTime=flashTankTime;
+			}
+		}
 		//print();
 	}
 	
@@ -1256,6 +1450,6 @@ class Map extends Frame{
 public class TestMap {
 	final static int freshTime=25;
 	public static void main(String[] args) {
-		Map M = new Map(2);
+		Map M = new Map();
 	}
 }
