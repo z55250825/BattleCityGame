@@ -843,6 +843,14 @@ class Map extends Frame{
 	
 	class MainThread extends Thread {
 		public void run(){
+			if (isEditor)
+			{
+				while (!bStop)
+				{
+					
+				}
+				return;
+			}
 			ImageIcon icon = new ImageIcon();
 			for (int i=0;i<8;i++)
 			{
@@ -889,8 +897,63 @@ class Map extends Frame{
 			}
 		}
 	}
-	Map(){}
+	
+	volatile int editorCoordinatex,editorCoordinatey;
+	final static int editorCoordinatedx[]={0,0,-1,1};
+	final static int editorCoordinatedy[]={-1,1,0,0};
+	int editorMap[][];
+	boolean isEditor;
+	/*
+	 * if use Map() to construct 
+	 * it's a map editor
+	 */
+	Map()
+	{
+		editorMap=new int[26][26];
+		isEditor=true;
+		for (int i=0;i<26;++i)
+			for (int j=0;j<26;++j)
+				map[i][j]=0;
+		
+		editorCoordinatex=0;
+		editorCoordinatey=0;
+		
+		this.addWindowListener(new WindowAdapter(){
+			public void windowClosing(WindowEvent e){
+				bStop=true;
+				System.exit(0);
+			}
+		});
+		
+		this.addKeyListener(new KeyAdapter(){
+		});
+		
+		this.setSize(650, 560);
+		this.setBackground(Color.black);
+		this.setVisible(true);
+		thread = new MainThread();
+		thread.start();
+	}
+	
+	void saveEditorMap()
+	{
+		try{
+			FileWriter out=new FileWriter("Maps/Map0.txt");
+			BufferedWriter wt=new BufferedWriter(out);
+			for (int i=0;i<26;++i)
+			{
+				for (int j=0;j<26;++j)
+					wt.write(editorMap[i][j]+" ");
+				wt.newLine();
+			}
+			wt.close();
+		}catch(IOException e){
+			System.out.print(e);
+		}
+	}
+	
 	Map(int level){
+		isEditor=false;
 		try{
 			File f = new File("Maps");
 			File fs[] = f.listFiles();
@@ -945,7 +1008,7 @@ class Map extends Frame{
 		thread = new MainThread();
 		thread.start();
 	}
-	
+
 	public void paint(Graphics g){
 		super.paint(g);
 		g.setColor(Color.white);
