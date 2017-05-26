@@ -973,12 +973,34 @@ class Map extends Frame{
 		g.drawLine(530, 30, 530, 550);
 		g.drawLine(10, 550, 530, 550);
 		String path = "pictures";
+		for (int i=0;i<26;++i){
+			for (int j=0;j<26;++j){
+				if (map[i][j]==3)
+				{
+					String dir=path+"/"+map[i][j]+".gif";
+					ImageIcon icon=new ImageIcon(dir);
+					Image images=icon.getImage();
+					g.drawImage(images, 10+j*20, 30+i*20, 20,20,this);
+				}
+			}
+		}
 		paintTank(g);
 		paintBullet(g);
 		paintBlast(g);
 		for(int i=0;i<26;i++){
 			for(int j=0;j<26;j++){
-				if(map[i][j] != 0 && map[i][j] != 5){
+				if(map[i][j] != 0 && map[i][j] != 5 &&map[i][j] !=3){
+					if (map[i][j]==4)
+					{
+						if ((i&1)==0&&(j&1)==0)
+						{
+							String dir=path+"/"+map[i][j]+".gif";
+							ImageIcon icon=new ImageIcon(dir);
+							Image images=icon.getImage();
+							g.drawImage(images, 10+j*20, 30+i*20, 40,40,this);
+						}
+						continue;
+					}
 					String dir = path + "/" + map[i][j] + ".gif";
 					ImageIcon icon = new ImageIcon(dir);
 					Image images = icon.getImage();
@@ -1124,7 +1146,8 @@ class Map extends Frame{
 	 */
 	boolean canGoTo(int x,int y)
 	{
-		if (map[y][x]==0&&map[y][x+1]==0&&map[y+1][x]==0&&map[y+1][x+1]==0)return true;
+		if (isGrass(map[y][x])==0&&isGrass(map[y][x+1])==0&&
+				isGrass(map[y+1][x])==0&&isGrass(map[y+1][x+1])==0)return true;
 		return false;
 	}
 	
