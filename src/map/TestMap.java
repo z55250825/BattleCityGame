@@ -993,8 +993,8 @@ class Map extends Frame{
 	}
 	
 	final static int editorState[]={0,1111,1100,1010,11,101,2222,2200,2020,22,202,
-			3333,4444};
-	final static int editorStateNum=13;
+			3333,4444,1122,1212,2211,2121};
+	final static int editorStateNum=17;
 	
 	int editorCalculateState(int x,int y)
 	{
@@ -1020,7 +1020,7 @@ class Map extends Frame{
 	void saveEditMap()
 	{
 		try{
-			FileWriter out=new FileWriter("Maps/Maps0.txt");
+			FileWriter out=new FileWriter("Maps/Map0.txt");
 			BufferedWriter wt=new BufferedWriter(out);
 			for (int i=0;i<26;++i)
 			{
@@ -1450,6 +1450,6 @@ class Map extends Frame{
 public class TestMap {
 	final static int freshTime=25;
 	public static void main(String[] args) {
-		Map M = new Map();
+		Map M = new Map(5);
 	}
 }
