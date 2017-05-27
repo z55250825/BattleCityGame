@@ -25,6 +25,8 @@ import sun.audio.*;
  * 6) seaStreamPeriod(Map Class)(determine the sea's flow dynamic effect)
  * 
  * 7) GameOverTime(GameOverCount Class)(used for show GameOver gif)
+ * 
+ * 8) shieldFlashTime(Tank Class)(used for paint flash shield)
  */
 
 /*
@@ -38,6 +40,10 @@ class Path
 	Path(int x,int y){this.x=x;this.y=y;}
 }
 
+/*
+ * when need music play, create a new thread class
+ * MusicPlayer to play the music
+ */
 class MusicPlayer extends Thread
 {
 	String path;
@@ -94,6 +100,12 @@ class Tank extends Thread {
 	int nowStep=-1;
 	volatile boolean shootLimit=false;
 	volatile boolean moveFlag[]=new boolean[4];
+	volatile int shieldMode=0;
+	final static int shieldFlashTime=4;
+	final static int halfShieldFlashTime=shieldFlashTime/2;
+	int shieldFlash=shieldFlashTime;
+	final static int bornShieldTime=5000;
+	final static int battleShieldTime=10000;
 	Map M;
 	
 	/*
@@ -111,7 +123,6 @@ class Tank extends Thread {
 	Tank(int x,int y,int id,int dir,Map M,int num,int speed, int player_life)
 	{
 		//s.entertainment();
-		
 		valid = 1;
 		this.x = x;
 		this.y = y;
@@ -126,6 +137,36 @@ class Tank extends Thread {
 		dy=new int[]{-speed,speed,0,0};
 		this.shootLimit=false;
 		for (int i=0;i<4;++i) moveFlag[i]=false;
+	
+		class bornShieldModeControl extends Thread{
+			public void run(){
+				try{
+					sleep(Tank.bornShieldTime);
+				}catch(InterruptedException e){
+					System.out.println(e);
+				}
+				shieldMode--;
+			}
+		}
+		if (this.isPlayer())
+		{
+			this.shieldMode=1;
+			bornShieldModeControl shield=new bornShieldModeControl();
+			Thread new_t=new Thread(shield);
+			new_t.start();
+		}
+	}
+	
+	final boolean isShieldOn()
+	{
+		return shieldMode>0;
+	}
+	
+	final void shieldDown()
+	{
+		this.shieldFlash--;
+		if (this.shieldFlash<0)
+			this.shieldFlash=Tank.shieldFlashTime;
 	}
 	
 	/*
@@ -615,6 +656,7 @@ class Tank extends Thread {
 	 */
 	void dieStatusChange()
 	{
+		if (this.isShieldOn())return;
 		valid=0;
 		Bomb b=new Bomb(x,y);
 		M.bombs.add(b);
@@ -624,7 +666,7 @@ class Tank extends Thread {
 		if (num==10)
 		{
 			if (player_life>0)
-				M.NewTank(190,510,6,0,M,10,5,player_life);
+				M.NewTank(190,510,6,0,M,10,8,player_life);
 			else
 				M.gameOver(false);
 		}
@@ -929,6 +971,7 @@ class Map extends Frame{
 	volatile int LeftTank = 10;
 	volatile boolean bStop;
 	volatile boolean Over,hqDestory;
+	volatile boolean pause;
 	
 	Vector<Bomb> bombs = new Vector<Bomb>();
 	Vector <Saint> saints = new Vector<Saint>();
@@ -976,7 +1019,7 @@ class Map extends Frame{
 			}
 			Thread th = new Thread(my_tank);
 			th.start();*/
-			NewTank(190,510,6,0,Map.this,cnt++,5,3);
+			NewTank(190,510,6,0,Map.this,cnt++,8,3);
 			NewTank(10,30,cnt++);
 			NewTank(490,30,cnt++);
 			NewTank(250,30,cnt++);
@@ -1009,6 +1052,18 @@ class Map extends Frame{
 											break;
 									}
 							default:
+								if(! Tank.overlap(cnt,10,30,TankLst))
+								{
+										NewTank(10,30,cnt);
+										cnt++;
+										break;					
+								}
+								if(!Tank.overlap(cnt,24*20+10,30,TankLst))
+								{
+										NewTank(24*20+10,30,cnt);
+										cnt++;
+										break;
+								}
 						}
 				}
 				try{
@@ -1050,6 +1105,7 @@ class Map extends Frame{
 	 * if use Map() then map editor mode
 	 */
 	Map(){
+		//pause=false;
 		editorMode=true;
 		Over=false;
 		findState=0;
@@ -1204,6 +1260,7 @@ class Map extends Frame{
 	}
 	
 	Map(int level){
+		//pause=false;
 		editorMode=false;
 		Over=false;
 		try{
@@ -1241,24 +1298,34 @@ class Map extends Frame{
 			public void keyPressed(KeyEvent e)
 			{
 				if (!Over)
-				synchronized(TankLst)
 				{
-					for (Tank tank:TankLst)
+					/*if (e.getKeyCode()==KeyEvent.VK_P)
 					{
-						if (tank.num==10)
-							tank.player_move(e.getKeyCode());
+						pause=!pause;
+						return;
+					}*/
+					synchronized(TankLst)
+					{
+						for (Tank tank:TankLst)
+						{
+							if (tank.num==10)
+								tank.player_move(e.getKeyCode());
+						}
 					}
 				}
 			}
 			public void keyReleased(KeyEvent e)
 			{
 				if (!Over)
-				synchronized(TankLst)
 				{
-					for (Tank tank:TankLst)
+					//if (pause)return;
+					synchronized(TankLst)
 					{
-						if (tank.num==10)
-							tank.player_stopMove(e.getKeyCode());
+						for (Tank tank:TankLst)
+						{
+							if (tank.num==10)
+								tank.player_stopMove(e.getKeyCode());
+						}
 					}
 				}
 			}
@@ -1423,6 +1490,17 @@ class Map extends Frame{
 				ImageIcon icon = new ImageIcon(dir);
 				Image images = icon.getImage();
 				g.drawImage(images,t.x, t.y,40, 40, this);
+				if (t.isPlayer()&&t.isShieldOn())
+				{
+					if (t.shieldFlash>=Tank.halfShieldFlashTime)
+						dir=path+"/shield0.gif";
+					else
+						dir=path+"/shield1.gif";
+					t.shieldDown();
+					icon=new ImageIcon(dir);
+					images=icon.getImage();
+					g.drawImage(images, t.x, t.y, 40,40,this);
+				}
 			}
 		}
 	}
@@ -1666,7 +1744,7 @@ class Map extends Frame{
 		else if(map[i][j] == 2) map[i][j] = 2;
 		else if(map[i][j] == 5) 
 		{
-			Map.playMusic("blast");
+			if (!Over)Map.playMusic("blast");
 			gameOver(true);
 		}
 	 }
@@ -1702,6 +1780,7 @@ class Map extends Frame{
 		GameOverTimeCount count=new GameOverTimeCount(this);
 		Thread new_t=new Thread(count);
 		new_t.start();
+		Map.playMusic("lose");
 	}
 	
 	final static void playStartMusic(String path)
@@ -1719,13 +1798,13 @@ class Map extends Frame{
 	{
 		MusicPlayer mp=new MusicPlayer(Path);
 		Thread new_t=new Thread(mp);
-		mp.start();
+		new_t.start();
 	}
 }
 
 public class TestMap {
 	final static int freshTime=25;
 	public static void main(String[] args) {
-		Map M = new Map(7);
+		Map M = new Map(3);
 	}
 }
