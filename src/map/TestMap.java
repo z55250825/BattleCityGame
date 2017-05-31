@@ -93,11 +93,14 @@ class Tank extends Thread {
 	 * 
 	 */
 	volatile int valid, x, y, dir;
-	int id, num, speed;
+	volatile int num, speed;
+	int id;
 	int player_life;
 	final static int MAXSTEP=200;
 	int randomStep=MAXSTEP;
 	int nowStep=-1;
+	final static int waitTimeLimit=5;
+	int waitTime=waitTimeLimit;
 	volatile boolean shootLimit=false;
 	volatile boolean moveFlag[]=new boolean[4];
 	volatile int shieldMode=0;
@@ -186,8 +189,17 @@ class Tank extends Thread {
 				}catch(InterruptedException e){
 					System.out.println(e);
 				}
-				if (num>10)ai_move();
-					else  player_move();
+				if (M.pause==false)
+				{
+					if (num>10)ai_move();
+						else  player_move();
+				}
+				else
+					if (isPlayer())
+					{
+						for (int i=0;i<4;++i)
+							moveFlag[i]=false;
+					}
 			}
 			return;
 		}
@@ -378,7 +390,6 @@ class Tank extends Thread {
 				changeState((dir+1)%4);
 				return;
 			}
-			
 			/*
 			 * find the shortest path to the HQ
 			 */
@@ -387,7 +398,6 @@ class Tank extends Thread {
 				pathRecord=M.bfsPathToHQ((x-10)/20,(y-30)/20);
 				nowStep=pathRecord.size()-1;
 			}
-			//printPath();
 			if (nowStep==-1)
 			{
 				pathRecord.clear();
@@ -585,7 +595,7 @@ class Tank extends Thread {
 					M.getMapNum(new_y2,new_x1) == 0 &&
 					M.getMapNum(new_y1,new_x1) == 0 &&
 					M.getMapNum(new_y2,new_x2) == 0 && 
-					overlap(num,x,y,M.TankLst) == false)
+					overlap(num,x,y,M.TankLst,M.saints) == false)
 				return true;
 		}
 		return false;
@@ -594,7 +604,7 @@ class Tank extends Thread {
 	/*
 	 * judge whether two tank is not overlapped
 	 */
-	final static boolean overlap(int t,int x,int y,Vector<Tank> TankLst)
+	final static boolean overlap(int t,int x,int y,Vector<Tank> TankLst,Vector<Saint> SaintLst)
 	{
 		int new_x,new_y;
 		synchronized(TankLst)
@@ -615,8 +625,18 @@ class Tank extends Thread {
 						}
 					}
 			}
-			return false;
 		}
+		synchronized(SaintLst)
+		{
+			for(Saint saint : SaintLst)
+				if (saint.isLive==true)
+				{
+					//saint出生处一定是整点，不考虑对齐
+					if (Math.abs(x-saint.x)<40&&Math.abs(y-saint.y)<40)
+						return true;
+				}
+		}
+		return false;
 	}
 	
 	/*
@@ -838,6 +858,7 @@ class Bullet extends Thread
             }catch(InterruptedException e){
                 System.out.println(e);
             }
+            if (M.pause==true)continue;
             //0向上、1向下、2向左、3向右、4不动
             int dx[] = {0,0,-6,6},dy[] = {-6,6,0,0};
             if(valid==1 && canGoTo(x+dx[dir],y+dy[dir])==true){
@@ -971,6 +992,11 @@ class Map extends Frame{
 	volatile int LeftTank = 10;
 	volatile boolean bStop;
 	volatile boolean Over,hqDestory;
+	
+	/*
+	 * use pause will cause shield turn off
+	 * early and AI shoot bullet quickly
+	 */
 	volatile boolean pause;
 	
 	Vector<Bomb> bombs = new Vector<Bomb>();
@@ -1028,37 +1054,48 @@ class Map extends Frame{
 					if(LeftTank > 0 && new_tank_time <= 0)
 					{
 						new_tank_time = 5*1000;
+						double rn=Math.random();
 						switch(LeftTank%3)
 						{
+							//Tank new_tank = new Tank(x,y,7,1,this,cnt,4,3);
 							case 0:
-									if(! Tank.overlap(cnt,10,30,TankLst))
+									if(! Tank.overlap(cnt,10,30,TankLst,saints))
 									{
-											NewTank(10,30,cnt);
+											if (rn>=0.3)
+												NewTank(10,30,cnt);
+											else
+												NewEnemyTank(10,30,9,1,cnt,10,3);
 											cnt++;
 											break;					
 									}
 							case 1:
-									if(! Tank.overlap(cnt,24*20+10,30,TankLst))
+									if(! Tank.overlap(cnt,490,30,TankLst,saints))
 									{
-											NewTank(24*20+10,30,cnt);
+											if (rn>=0.3)
+												NewTank(490,30,cnt);
+											else
+												NewEnemyTank(490,30,9,1,cnt,10,3);
 											cnt++;
 											break;
 									}
 							case 2:
-									if(! Tank.overlap(cnt,12*20+10,30,TankLst))
+									if(! Tank.overlap(cnt,250,30,TankLst,saints))
 									{
-											NewTank(12*20+10,30,cnt);
+											if (rn>=0.3)
+												NewTank(250,30,cnt);
+											else
+												NewEnemyTank(250,30,9,1,cnt,10,3);
 											cnt++;
 											break;
 									}
 							default:
-								if(! Tank.overlap(cnt,10,30,TankLst))
+								if(!Tank.overlap(cnt,10,30,TankLst,saints))
 								{
 										NewTank(10,30,cnt);
 										cnt++;
 										break;					
 								}
-								if(!Tank.overlap(cnt,24*20+10,30,TankLst))
+								if(!Tank.overlap(cnt,24*20+10,30,TankLst,saints))
 								{
 										NewTank(24*20+10,30,cnt);
 										cnt++;
@@ -1068,7 +1105,7 @@ class Map extends Frame{
 				}
 				try{
 					sleep(TestMap.freshTime);
-					new_tank_time -= TestMap.freshTime;
+					if (pause==false)new_tank_time -= TestMap.freshTime;
 				}catch(InterruptedException e){
 					System.out.println(e);
 				}
@@ -1105,7 +1142,7 @@ class Map extends Frame{
 	 * if use Map() then map editor mode
 	 */
 	Map(){
-		//pause=false;
+		pause=false;
 		editorMode=true;
 		Over=false;
 		findState=0;
@@ -1260,7 +1297,7 @@ class Map extends Frame{
 	}
 	
 	Map(int level){
-		//pause=false;
+		pause=false;
 		editorMode=false;
 		Over=false;
 		try{
@@ -1299,11 +1336,12 @@ class Map extends Frame{
 			{
 				if (!Over)
 				{
-					/*if (e.getKeyCode()==KeyEvent.VK_P)
+					if (e.getKeyCode()==KeyEvent.VK_P)
 					{
 						pause=!pause;
 						return;
-					}*/
+					}
+					if (pause==true)return;
 					synchronized(TankLst)
 					{
 						for (Tank tank:TankLst)
@@ -1318,7 +1356,7 @@ class Map extends Frame{
 			{
 				if (!Over)
 				{
-					//if (pause)return;
+					if (pause)return;
 					synchronized(TankLst)
 					{
 						for (Tank tank:TankLst)
@@ -1425,6 +1463,13 @@ class Map extends Frame{
 			ImageIcon icon = new ImageIcon(dir);
 			Image images = icon.getImage();
 			g.drawImage(images, 250, 510 , 40, 40,this);
+			if (pause==true)
+			{
+				dir=path+"/pause.png";
+				icon=new ImageIcon(dir);
+				images=icon.getImage();
+				g.drawImage(images, 210, 250, 70,20,this);
+			}
 		}
 		else
 		{
@@ -1448,7 +1493,7 @@ class Map extends Frame{
 			dir=path+"/over.gif";
 			icon=new ImageIcon(dir);
 			images =icon.getImage();
-			g.drawImage(images, 110, 210, 280, 80,this);
+			g.drawImage(images, 150, 230, 200, 60,this);
 		}
 		//print();
 	}
@@ -1461,7 +1506,7 @@ class Map extends Frame{
 	        Bomb b = bombs.get(i);
 	        g.drawImage(blastImage[b.life-1], b.x, b.y, 40, 40, this);
 	        //System.out.format("%d\n",b.life);
-	        b.lifeDown();
+	        if (pause==false)b.lifeDown();
 	        //如果life=0，将炸弹从bombs向量去掉
 	        if(b.isLive==false) bombs.remove(b);
 	    }
@@ -1469,12 +1514,15 @@ class Map extends Frame{
 	
 	void paintSaint(Graphics g)
 	{
-		for (int i=0;i<saints.size();i++)
+		synchronized(saints)
 		{
-			Saint s=saints.get(i);
-			g.drawImage(bornImage[s.life-1], s.x, s.y, 40, 40, this);
-			s.lifeDown();
-			if (s.isLive==false) saints.remove(s);
+			for (int i=0;i<saints.size();i++)
+			{
+				Saint s=saints.get(i);
+				g.drawImage(bornImage[s.life-1], s.x, s.y, 40, 40, this);
+				if (pause==false)s.lifeDown();
+				if (s.isLive==false) saints.remove(s);
+			}
 		}
 	}
 	
@@ -1496,7 +1544,7 @@ class Map extends Frame{
 						dir=path+"/shield0.gif";
 					else
 						dir=path+"/shield1.gif";
-					t.shieldDown();
+					if (pause==false)t.shieldDown();
 					icon=new ImageIcon(dir);
 					images=icon.getImage();
 					g.drawImage(images, t.x, t.y, 40,40,this);
@@ -1531,6 +1579,12 @@ class Map extends Frame{
 			else return n; 
 	}
 	
+	final static int isBrick(int n)
+	{
+		if (n==1)return 0;
+			else return n; 
+	}
+	
 	synchronized int getMapNum(int i,int j){
 		return isGrass(map[i][j])+isGrass(map[i+1][j])
 		+isGrass(map[i][j+1])+isGrass(map[i+1][j+1]);
@@ -1548,6 +1602,18 @@ class Map extends Frame{
 		System.out.println();
 	}
 	
+	final static void shuffle(int []a,int len,int num)
+	{
+		int tmp;
+		for (int i=0;i<num;++i)
+		{
+			int j=(int)(Math.random()*len);
+			int k=(int)(Math.random()*len);
+			tmp=a[j];
+			a[j]=a[k];
+			a[k]=tmp;
+		}
+	}
 	/*
 	 * AI bfs
 	 */
@@ -1560,14 +1626,16 @@ class Map extends Frame{
 		vis[x][y]=1;
 		Queue<Path>que=new LinkedList<Path>();
 		que.offer(new Path(x,y));
+		int dirs[]={0,1,2,3};
 		while (!que.isEmpty())
 		{
 			Path u=que.poll();
 			int ux=u.x,uy=u.y;
+			shuffle(dirs,4,10);
 			for (int dir=0;dir<4;++dir)
 			{
-				int vx=ux+dx[dir];
-				int vy=uy+dy[dir];
+				int vx=ux+dx[dirs[dir]];
+				int vy=uy+dy[dirs[dir]];
 				if (!out(vx,vy)&&canGoTo(vx,vy)&&vis[vx][vy]==0)
 				{
 					pre[vx][vy]=new Path(ux,uy);
@@ -1607,8 +1675,8 @@ class Map extends Frame{
 	 */
 	boolean canGoTo(int x,int y)
 	{
-		if (isGrass(map[y][x])==0&&isGrass(map[y][x+1])==0&&
-				isGrass(map[y+1][x])==0&&isGrass(map[y+1][x+1])==0)return true;
+		if (isBrick(isGrass(map[y][x]))==0&&isBrick(isGrass(map[y][x+1]))==0&&
+				isBrick(isGrass(map[y+1][x]))==0&&isBrick(isGrass(map[y+1][x+1]))==0)return true;
 		return false;
 	}
 	
@@ -1654,6 +1722,12 @@ class Map extends Frame{
 		LeftTank--;
 	}
 	
+	void NewEnemyTank(int x,int y,int id,int dir,int num,int speed,int player_life)
+	{
+		NewTank(x,y,id,dir,this,num,speed,player_life);
+		LeftTank--;
+	}
+	
 	void NewTank(int x,int y,int cnt)
 	{
 		class NewTank1 extends Thread
@@ -1672,7 +1746,10 @@ class Map extends Frame{
 			}
 		}
 		Saint s=new Saint(x,y);
-		saints.add(s);
+		synchronized(saints)
+		{
+			saints.add(s);
+		}
 		NewTank1 new_n=new NewTank1(x,y,cnt,s);
 		Thread new_t=new Thread(new_n);
 		new_t.start();
@@ -1698,7 +1775,10 @@ class Map extends Frame{
 			}
 		}
 		Saint s=new Saint(x,y);
-		saints.add(s);
+		synchronized(saints)
+		{
+			saints.add(s);
+		}
 		NewTank1 new_n=new NewTank1(x,y,id,dir,M,num,speed,player_life,s);
 		Thread new_t=new Thread(new_n);
 		new_t.start();
@@ -1805,6 +1885,6 @@ class Map extends Frame{
 public class TestMap {
 	final static int freshTime=25;
 	public static void main(String[] args) {
-		Map M = new Map(3);
+		Map M = new Map(5);
 	}
 }
