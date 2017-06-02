@@ -27,6 +27,8 @@ import sun.audio.*;
  * 7) GameOverTime(GameOverCount Class)(used for show GameOver gif)
  * 
  * 8) shieldFlashTime(Tank Class)(used for paint flash shield)
+ * 
+ * 9) tankFlashTime(Tank Class)(used for paint flash tank)
  */
 
 /*
@@ -52,6 +54,131 @@ class MusicPlayer extends Thread
 	public void run()
 	{
 		Map.playStartMusic(path);
+	}
+}
+
+class Props extends Thread {
+	/*
+	 * number = 
+	 * 0: shield
+	 * 1: steel guard
+	 * 2: player_life
+	 * 3: level up
+	 * 4: bomb
+	 * 5: clock up
+	 */
+	volatile int number,x,y;
+	final static int propFlashTime=10;
+	final static int halfPropFlashTime=propFlashTime/2;
+	final static int frozeTime=25000;
+	int froze;
+	int propFlash;
+	volatile boolean valid;
+	
+	Map M;
+	Props(){}
+	Props(Map M)
+	{
+		valid=true;
+		this.M=M;
+		number=(int)(Math.random()*6);
+		x=(int)(Math.random()*26);
+		y=(int)(Math.random()*26);
+		froze=(int)(Math.random()*frozeTime)+8000;
+		if ((x&1)==0)++x;if (x==25)x=23;
+		if ((y&1)==0)++y;if (y==25)y=23;
+		int times=0;
+		while (times<10&&Map.canDropProp(x, y, M)==false)
+		{
+			x=(int)(Math.random()*26);
+			y=(int)(Math.random()*26);
+			if ((x&1)==0)++x;if (x==25)x=23;
+			if ((y&1)==0)++y;if (y==25)y=23;
+			times++;
+		}
+		x=x*20+30;
+		y=y*20+10;
+		synchronized(M.props)
+		{
+			M.props.clear();
+			M.props.addElement(this);
+		}
+		Thread new_t=new Thread(this);
+		new_t.start();
+		Map.playMusic("eat");
+	}
+	
+	public void run()
+	{
+		try{
+			sleep(froze);
+		}catch(InterruptedException e){
+			System.out.println(e);
+		}
+		dieStatusChange();
+	}
+	
+	void dieStatusChange()
+	{
+		if (valid==false)return;
+		valid=false;
+		synchronized(M.props)
+		{
+			M.props.removeElement(this);
+		}
+	}
+	
+	void flashDown()
+	{
+		propFlash--;
+		if (propFlash<0)
+			propFlash=Props.propFlashTime;
+	}
+	
+	void use(Tank t)
+	{
+		class ClockUp extends Thread{
+			public void run()
+			{
+				Tank.aiMoveStatusChange(1);
+				try{
+					sleep(Tank.aiSleepTime);
+				}catch(InterruptedException e){
+					System.out.println(e);
+				}
+				Tank.aiMoveStatusChange(-1);
+			}
+		}
+		if (valid==false)return;
+		switch(number){
+			case 0:
+				t.shieldModeOn();
+				Map.playMusic("add");
+				break;
+			case 1:
+				M.steelGuard();
+				Map.playMusic("add");
+				break;
+			case 2:
+				t.playerLifeAdd();
+				Map.playMusic("life");
+				break;
+			case 3:
+				t.playerLevelUp();
+				Map.playMusic("add");
+				break;
+			case 4:
+				M.killAllEnemyTank();
+				Map.playMusic("bomb");
+				break;
+			case 5:
+				ClockUp cu=new ClockUp();
+				Thread new_t=new Thread(cu);
+				new_t.start();
+				Map.playMusic("add");
+				break;
+		}
+		dieStatusChange();
 	}
 }
 
@@ -87,28 +214,52 @@ class Tank extends Thread {
 	 * moveFlag: if move[i]=true means that now the tank is moving 
 	 * towards direction i (used for achieve the effect that shooting
 	 *  while moving)
+	 *  
+	 *  shieldMode: determine whether the tank is protected by shield
+	 *  shieldFlashTime/halfShieldFlashTime: constant used for shield flash
+	 *  shieldFlash: used for controlling shield flash
+	 *  bornShieldTime(ms):determine the shield time when player is born
+	 *  battleShieldTime(ms):determine the shield time when player eat a shield prop 
+	 *  
+	 *  tankFlashTime/halfTankFlashTime:constant used for special tank flash
+	 *  tankFlash:used for controlling tank flash
 	 * 
-	 * M:the map M
+	 * 	M:the map M
 	 * 
 	 * 
 	 */
 	volatile int valid, x, y, dir;
 	volatile int num, speed;
 	int id;
-	int player_life;
-	final static int MAXSTEP=200;
+	volatile int player_life;
+	
+	final static int MAXSTEP=120;
 	int randomStep=MAXSTEP;
 	int nowStep=-1;
-	final static int waitTimeLimit=5;
-	int waitTime=waitTimeLimit;
-	volatile boolean shootLimit=false;
+	volatile static int aiCanNotMove=0;
+	final static int aiSleepTime=10000;
+	
+	volatile int maxShootLimit=1;
+	volatile int shootLimit=1;
+	
 	volatile boolean moveFlag[]=new boolean[4];
+	
 	volatile int shieldMode=0;
 	final static int shieldFlashTime=4;
 	final static int halfShieldFlashTime=shieldFlashTime/2;
 	int shieldFlash=shieldFlashTime;
 	final static int bornShieldTime=5000;
 	final static int battleShieldTime=10000;
+	
+	final static int initialBulletSpeed=6;
+	final static int enforcedBulletSpeed=8;
+	volatile int bulletSpeed=6;
+	volatile boolean enforcedBullet=false;
+	
+	final static int tankFlashTime=4;
+	final static int halftankFlashTime=tankFlashTime/2;
+	int tankFlash=tankFlashTime;
+	
 	Map M;
 	
 	/*
@@ -126,7 +277,8 @@ class Tank extends Thread {
 	Tank(int x,int y,int id,int dir,Map M,int num,int speed, int player_life)
 	{
 		//s.entertainment();
-		valid = 1;
+		if (id==10)valid = 4;
+			  else valid = 1;
 		this.x = x;
 		this.y = y;
 		this.id = id;
@@ -138,7 +290,9 @@ class Tank extends Thread {
 					else this.player_life=1;
 		dx=new int[]{0,0,-speed,speed};
 		dy=new int[]{-speed,speed,0,0};
-		this.shootLimit=false;
+		this.shootLimit=1;
+		this.bulletSpeed=Tank.initialBulletSpeed;
+		this.enforcedBullet=false;
 		for (int i=0;i<4;++i) moveFlag[i]=false;
 	
 		class bornShieldModeControl extends Thread{
@@ -160,6 +314,24 @@ class Tank extends Thread {
 		}
 	}
 	
+	final void shieldModeOn()
+	{
+		class battleShieldModeControl extends Thread{
+			public void run(){
+				try{
+					sleep(Tank.battleShieldTime);
+				}catch(InterruptedException e){
+					System.out.println(e);
+				}
+				shieldMode--;
+			}
+		}
+		shieldMode++;
+		battleShieldModeControl shield=new battleShieldModeControl();
+		Thread new_t=new Thread(shield);
+		new_t.start();
+	}
+	
 	final boolean isShieldOn()
 	{
 		return shieldMode>0;
@@ -170,6 +342,31 @@ class Tank extends Thread {
 		this.shieldFlash--;
 		if (this.shieldFlash<0)
 			this.shieldFlash=Tank.shieldFlashTime;
+	}
+	
+	final void tankFlashDown()
+	{
+		this.tankFlash--;
+		if (this.tankFlash<0)
+			this.tankFlash=Tank.tankFlashTime;
+	}
+	
+	final void pickProps()
+	{
+		Props p=null;
+		synchronized(M.props)
+		{
+			for (Props props : M.props)
+				if (props.valid)
+					if (Math.abs(x-props.x)<2&&Math.abs(y-props.y)<2)
+						p=props;
+		}
+		if (p!=null)p.use(this);
+	}
+	
+	final void playerLifeAdd()
+	{
+		this.player_life++;
 	}
 	
 	/*
@@ -191,8 +388,16 @@ class Tank extends Thread {
 				}
 				if (M.pause==false)
 				{
-					if (num>10)ai_move();
-						else  player_move();
+					if (num>10)
+					{
+						if (aiCanNotMove==0)
+							ai_move();
+					}
+					else  
+					{
+						player_move();
+						pickProps();
+					}
 				}
 				else
 					if (isPlayer())
@@ -360,6 +565,11 @@ class Tank extends Thread {
 		}
 	}
 	
+	final static void aiMoveStatusChange(int dir)
+	{
+		aiCanNotMove=aiCanNotMove+dir;
+	}
+	
 	/*
 	 * used for ai move
 	 */
@@ -523,9 +733,9 @@ class Tank extends Thread {
 	 */
 	void shoot()
 	{
-		if (shootLimit==false)
+		if (shootLimit>=1)
 		{
-			shootLimit=true;
+			shootLimit--;
 			if (this.isPlayer())Map.playMusic("fire");
 			Bullet b=new Bullet(this,M);
 			Thread th = new Thread(b);
@@ -610,7 +820,7 @@ class Tank extends Thread {
 		synchronized(TankLst)
 		{
 			for(Tank tank : TankLst){
-				if(tank.valid==1)
+				if(tank.valid>=1)
 					if(tank.num != t)
 					{
 						if (Math.abs(x-tank.x)<40&&Math.abs(y-tank.y)<40)
@@ -670,19 +880,34 @@ class Tank extends Thread {
 		return -1;
 	}
 	
+	final static boolean isPropTank(int number)
+	{
+		if (number==11)return true;
+		return false;
+	}
+	
 	/*
 	 * change the tank's status to dead
 	 * and delete the tank
 	 */
-	void dieStatusChange()
+	void dieStatusChange(boolean bulletHit)
 	{
 		if (this.isShieldOn())return;
+		if (valid>1)
+		{
+			valid--;
+			return;
+		}
 		valid=0;
 		Bomb b=new Bomb(x,y);
 		M.bombs.add(b);
 		Map.playMusic("blast");
 		player_life=player_life-1;
 		M.deleteTank(this);
+		if (bulletHit&&isPropTank(this.id))
+		{
+			Props newProp=new Props(this.M);
+		}
 		if (num==10)
 		{
 			if (player_life>0)
@@ -736,10 +961,10 @@ class Tank extends Thread {
 				}catch(InterruptedException e){
 					System.out.println(e);
 				}
-				T.shootLimit=false;
+				T.shootLimit++;
 			}
 		}
-		if (isPlayer()) shootLimit=false;
+		if (isPlayer()) shootLimit++;
 		else
 		{
 			ShootLimit tmp=new ShootLimit(this);
@@ -747,7 +972,26 @@ class Tank extends Thread {
 			new_t.start();
 		}
 	}
-	
+
+	void playerLevelUp()
+	{
+		if (bulletSpeed==Tank.initialBulletSpeed)
+		{
+			bulletSpeed=Tank.enforcedBulletSpeed;
+			return;
+		}
+		if (maxShootLimit==1)
+		{
+			maxShootLimit++;
+			shootLimit++;
+			return;
+		}
+		if (enforcedBullet==false)
+		{
+			enforcedBullet=true;
+			return;
+		}
+	}
 }
 
 class Bomb
@@ -803,11 +1047,6 @@ class Saint
     			}
     	}
     }
-    
-    /*public void entertainment()
-    {
-    	while (entertainment);
-    }*/
 }
 
 class Bullet extends Thread
@@ -817,6 +1056,8 @@ class Bullet extends Thread
 	Map M;
 	Tank T;
 	int flag;//0代表己方，1代表敌方。
+	int speed;
+	boolean enforced;
 	
 	final static int initx[]={20,20,0,40};
 	final static int inity[]={0,40,20,20};
@@ -824,15 +1065,18 @@ class Bullet extends Thread
 	Bullet()
 	{
 		valid=0;x=-1;y=-1;dir=0;flag=0;
+		this.speed=6;
 	}
 	
-	Bullet(int x,int y, int dir, Map M, int num)
+	Bullet(int x,int y, int dir, Map M, int num,int speed,boolean enforced)
 	{
 		valid=1;
 		this.dir=dir;
 		this.x=x+initx[dir];
 		this.y=y+inity[dir];
 		this.M=M;
+		this.speed=speed;
+		this.enforced=enforced;
 		if (num>10) this.flag=1;
 			else this.flag=0;
 	}
@@ -845,6 +1089,8 @@ class Bullet extends Thread
 		this.y=t.y+inity[dir];
 		this.M=M;
 		this.T=t;
+		this.speed=t.bulletSpeed;
+		this.enforced=t.enforcedBullet;
 		if (t.num>10) this.flag=1;
 			else this.flag=0;
 	}
@@ -860,7 +1106,7 @@ class Bullet extends Thread
             }
             if (M.pause==true)continue;
             //0向上、1向下、2向左、3向右、4不动
-            int dx[] = {0,0,-6,6},dy[] = {-6,6,0,0};
+            int dx[] = {0,0,-speed,speed},dy[] = {-speed,speed,0,0};
             if(valid==1 && canGoTo(x+dx[dir],y+dy[dir])==true){
                 x += dx[dir];
                 y += dy[dir];
@@ -897,7 +1143,7 @@ class Bullet extends Thread
          {
         	 for (Tank t:M.TankLst)
         	 {
-        		 if (t.valid==1)
+        		 if (t.valid>=1)
         		 {
         			 if (x+3>=t.x && t.x+40>=x-3 && y+3>=t.y && t.y+40>=y-3)
         			 {
@@ -913,7 +1159,7 @@ class Bullet extends Thread
          
          if (tmp!=null)
          {
-        	 tmp.dieStatusChange();
+        	 tmp.dieStatusChange(true);
         	 dieStatusChange();
          }
          
@@ -941,8 +1187,8 @@ class Bullet extends Thread
         	 dieStatusChange();
          }
          
-         M.clear(i, j);
-         M.clear(i+icoordinateInc[dir], j+jcoordinateInc[dir]);
+         M.clear(i, j, this.enforced);
+         M.clear(i+icoordinateInc[dir], j+jcoordinateInc[dir], this.enforced);
          if (x<10 || y<30 || x>530 || y>550)dieStatusChange();
 	}
 
@@ -962,8 +1208,8 @@ class Bullet extends Thread
 		new_y2 = (int)Math.floor(1.0*(y-30)/20);
 		if(new_x1>=0&&new_x1<=25&&new_y1>=0&&new_y1<=25 &&
 				new_x2>=0&&new_x2<=25&&new_y2>=0&&new_y2<=25){
-			if(M.map[new_y2][new_x2] == 2) return false;
-									else   return true;
+			if(M.map[new_y2][new_x2] == 2 && this.enforced==false ) return false;
+															  else   return true;
 		}
 		return false;
 	}
@@ -989,7 +1235,8 @@ class Map extends Frame{
 	Vector<Bullet> BulletLst = new Vector<Bullet>();
 	Vector<Path> SeaCoordinate=new Vector<Path>();
 	MainThread thread;
-	volatile int LeftTank = 10;
+	final static int MAXENEMYTANK=20;
+	volatile int LeftTank = MAXENEMYTANK;
 	volatile boolean bStop;
 	volatile boolean Over,hqDestory;
 	
@@ -1001,8 +1248,10 @@ class Map extends Frame{
 	
 	Vector<Bomb> bombs = new Vector<Bomb>();
 	Vector <Saint> saints = new Vector<Saint>();
+	Vector <Props> props = new Vector<Props>();
 	Image blastImage[]=new Image[8];
 	Image bornImage[]=new Image[4];
+	Image propImage[]=new Image[6];
 	
 	class MainThread extends Thread {
 		public void run(){
@@ -1037,6 +1286,12 @@ class Map extends Frame{
 				bornImage[i]=icon.getImage(); 
 			}//Initialize born images
 			
+			for (int i=0;i<6;i++)
+			{
+				icon=new ImageIcon("pictures/prop"+(i+1)+".gif");
+				propImage[i]=icon.getImage();
+			}
+			
 			int new_tank_time = 5*1000,cnt = 10;
 			/*Tank my_tank = new Tank(190,510,6,0,Map.this,cnt++,5,3);
 			synchronized(TankLst)
@@ -1064,7 +1319,7 @@ class Map extends Frame{
 											if (rn>=0.3)
 												NewTank(10,30,cnt);
 											else
-												NewEnemyTank(10,30,9,1,cnt,10,3);
+												NewEnemyTank(10,30,11,1,cnt,4,3);
 											cnt++;
 											break;					
 									}
@@ -1084,7 +1339,7 @@ class Map extends Frame{
 											if (rn>=0.3)
 												NewTank(250,30,cnt);
 											else
-												NewEnemyTank(250,30,9,1,cnt,10,3);
+												NewEnemyTank(250,30,10,1,cnt,4,3);
 											cnt++;
 											break;
 									}
@@ -1450,11 +1705,44 @@ class Map extends Frame{
 		for(int i=0;i<26;i++){
 			for(int j=0;j<26;j++){
 				if(map[i][j] != 0 && map[i][j] != 5 &&map[i][j] !=3){
-					String dir = path + "/" + map[i][j] + ".gif";
-					ImageIcon icon = new ImageIcon(dir);
-					Image images = icon.getImage();
-					g.drawImage(images, 10+j*20, 30+i*20, 20, 20,this);
+					if (this.steelFlashMode)
+					{
+						if (Map.inHQ(i, j))
+						{
+							String dir;
+							if (this.steelFlash>=this.halfSteelFlashTime)
+								dir=path+"/2.gif";
+							else
+								dir=path+"/1.gif";
+							ImageIcon icon = new ImageIcon(dir);
+							Image images = icon.getImage();
+							g.drawImage(images, 10+j*20, 30+i*20, 20, 20,this);
+						}
+						else
+						{
+							String dir = path + "/" + map[i][j] + ".gif";
+							ImageIcon icon = new ImageIcon(dir);
+							Image images = icon.getImage();
+							g.drawImage(images, 10+j*20, 30+i*20, 20, 20,this);
+						}
+					}
+					else
+					{
+						String dir = path + "/" + map[i][j] + ".gif";
+						ImageIcon icon = new ImageIcon(dir);
+						Image images = icon.getImage();
+						g.drawImage(images, 10+j*20, 30+i*20, 20, 20,this);
+					}
 				}
+			}
+		}
+		if (this.steelFlashMode)
+		{
+			this.steelFlash--;
+			if (this.steelFlash==0)
+			{
+				this.steelPeriod++;
+				this.steelFlash=Map.steelFlashTime;
 			}
 		}
 		if (!Over)
@@ -1495,6 +1783,7 @@ class Map extends Frame{
 			images =icon.getImage();
 			g.drawImage(images, 150, 230, 200, 60,this);
 		}
+		paintProp(g);
 		//print();
 	}
 	
@@ -1514,6 +1803,8 @@ class Map extends Frame{
 	
 	void paintSaint(Graphics g)
 	{
+		Saint sa[]=new Saint[MAXENEMYTANK];
+		int cnt=0;
 		synchronized(saints)
 		{
 			for (int i=0;i<saints.size();i++)
@@ -1521,12 +1812,27 @@ class Map extends Frame{
 				Saint s=saints.get(i);
 				g.drawImage(bornImage[s.life-1], s.x, s.y, 40, 40, this);
 				if (pause==false)s.lifeDown();
-				if (s.isLive==false) saints.remove(s);
+				if (s.isLive==false) sa[cnt++]=s;
+			}
+			for (int i=0;i<cnt;++i)saints.removeElement(sa[i]);
+		}
+	}
+	
+	void paintProp(Graphics g)
+	{
+		synchronized(props)
+		{
+			for (Props p : props)
+			{
+				if (p.valid==false )continue;
+				if (p.propFlash>=p.halfPropFlashTime)
+					g.drawImage(propImage[p.number], p.x, p.y, 40,40,this);
+				if (pause==false)p.flashDown();
 			}
 		}
 	}
 	
-	
+	final static int num10texture[][]={{0,0},{0,0},{1,2},{0,1},{0,2}};
 	void paintTank(Graphics g)
 	{
 		String path = "pictures";
@@ -1534,6 +1840,36 @@ class Map extends Frame{
 		{
 			for(Tank t : TankLst){
 				if(t.valid == 0) continue;
+				if(t.id==10)
+				{
+					String dir;
+					if (t.tankFlash>Tank.halftankFlashTime)
+					{
+						dir=path+"/"+t.id+num10texture[t.valid][0]+t.dir+".gif";
+					}
+					else
+					{
+						dir=path+"/"+t.id+num10texture[t.valid][1]+t.dir+".gif";
+					}
+					if (pause==false)t.tankFlashDown();
+					ImageIcon icon=new ImageIcon(dir);
+					Image images=icon.getImage();
+					g.drawImage(images, t.x, t.y,40,40,this);
+					continue;
+				}
+				if (t.id==11)
+				{
+					String dir;
+					if (t.tankFlash>Tank.halftankFlashTime)
+						dir=path+"/"+t.id+"0"+t.dir+".png";
+					else
+						dir=path+"/"+t.id+"1"+t.dir+".gif";
+					if (pause==false)t.tankFlashDown();
+					ImageIcon icon=new ImageIcon(dir);
+					Image images=icon.getImage();
+					g.drawImage(images, t.x, t.y,40,40,this);
+					continue;
+				}
 				String dir = path + "/" + t.id + t.dir + ".gif";
 				ImageIcon icon = new ImageIcon(dir);
 				Image images = icon.getImage();
@@ -1541,9 +1877,9 @@ class Map extends Frame{
 				if (t.isPlayer()&&t.isShieldOn())
 				{
 					if (t.shieldFlash>=Tank.halfShieldFlashTime)
-						dir=path+"/shield0.gif";
+						dir=path+"/"+"shield0.gif";
 					else
-						dir=path+"/shield1.gif";
+						dir=path+"/"+"shield1.gif";
 					if (pause==false)t.shieldDown();
 					icon=new ImageIcon(dir);
 					images=icon.getImage();
@@ -1582,6 +1918,12 @@ class Map extends Frame{
 	final static int isBrick(int n)
 	{
 		if (n==1)return 0;
+			else return n; 
+	}
+	
+	final static int isSteel(int n)
+	{
+		if (n==2)return 0;
 			else return n; 
 	}
 	
@@ -1688,6 +2030,14 @@ class Map extends Frame{
 		if (x==9&&y==24)return true;
 		if (x==15&&y==24)return true;
 		if (y==21&&x==12)return true;
+		return false;
+	}
+	
+	final static boolean canDropProp(int x,int y,Map M)
+	{
+		int data=isSteel(isRiver(M.map[y][x]))|isSteel(isRiver(M.map[y+1][x]))|
+				isSteel(isRiver(M.map[y][x+1]))|isSteel(isRiver(M.map[y+1][x+1]));
+		if (data>0)return true;
 		return false;
 	}
 	
@@ -1816,17 +2166,22 @@ class Map extends Frame{
 		return res;
 	 }
 	
-	void clear(int i,int j)
+	void clear(int i,int j,boolean enforcedBullet)
 	 {
 		i=check(i);
 		j=check(j);
 		if(map[i][j] == 1) map[i][j] = 0;
-		else if(map[i][j] == 2) map[i][j] = 2;
-		else if(map[i][j] == 5) 
-		{
-			if (!Over)Map.playMusic("blast");
-			gameOver(true);
-		}
+			else 
+				if(map[i][j] == 2) 
+				{
+					if (enforcedBullet==false)map[i][j] = 2;
+										else  map[i][j] = 0; 
+				}
+				else if(map[i][j] == 5) 
+				{
+					if (!Over)Map.playMusic("blast");
+					gameOver(true);
+				}
 	 }
 	
 	class GameOverTimeCount extends Thread
@@ -1879,6 +2234,70 @@ class Map extends Frame{
 		MusicPlayer mp=new MusicPlayer(Path);
 		Thread new_t=new Thread(mp);
 		new_t.start();
+	}
+	
+	final static int steelGuardTime=12000;
+	final static int steelFlashTime=8;
+	final static int halfSteelFlashTime=steelFlashTime/2;
+	final static int steelPeriodTime=5;
+	volatile boolean steelFlashMode=false;
+	int steelFlash=steelFlashTime;
+	int steelPeriod=0;
+	
+	final static int hqPosx[]=new int[]{23,24,25,23,23,24,25};
+	final static int hqPosy[]=new int[]{11,11,12,13,14,14,14};
+	
+	final static boolean inHQ(int x,int y)
+	{
+		for (int i=0;i<7;++i)
+			if (hqPosx[i]==x&&hqPosy[i]==y)
+				return true;
+		return false;
+	}
+	
+	final void steelGuard()
+	{
+		class steelGuardControl extends Thread{
+			boolean alive=true;
+			steelGuardControl(){alive=true;}
+			public void run()
+			{
+				steelPeriod=0;
+				try{
+					sleep(steelGuardTime);
+				}catch(InterruptedException e){
+					System.out.println(e);
+				}
+				steelFlashMode=true;
+				while (steelPeriod<=steelPeriodTime);
+				map[23][11]=map[24][11]=map[25][11]=map[23][12]=map[23][13]
+						=map[23][14]=map[24][14]=map[25][14]=1;
+				steelFlashMode=false;
+			}
+		}
+		map[23][11]=map[24][11]=map[25][11]=map[23][12]=map[23][13]
+				=map[23][14]=map[24][14]=map[25][14]=2;
+		steelGuardControl sgc=new steelGuardControl();
+		Thread new_t=new Thread(sgc);
+		new_t.start();
+	}
+	
+	final void killAllEnemyTank()
+	{
+		Tank []player_tank=new Tank[2];
+		int tot=0;
+		synchronized(TankLst)
+		{
+			for (Tank t : TankLst)
+				if (t.valid>=1)
+				{
+					if (t.isPlayer())player_tank[tot++]=t;
+								else t.dieStatusChange(false); 
+				}
+			TankLst.clear();
+			for (int i=0;i<tot;++i)
+				TankLst.add(player_tank[i]);
+		}
 	}
 }
 
