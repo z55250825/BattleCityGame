@@ -1885,6 +1885,6 @@ class Map extends Frame{
 public class TestMap {
 	final static int freshTime=25;
 	public static void main(String[] args) {
-		Map M = new Map(5);
+		Map M = new Map(1);
 	}
 }
