@@ -279,8 +279,8 @@ class Tank extends Thread {
 	Tank(int x,int y,int id,int dir,Map M,int num,int speed, int player_life)
 	{
 		//s.entertainment();
-		if (id==10)valid = 4;
-			  else valid = 1;
+		if (id==10||id==12)valid = 4;
+			  		  else valid = 1;
 		this.x = x;
 		this.y = y;
 		this.id = id;
@@ -886,6 +886,8 @@ class Tank extends Thread {
 	final static boolean isPropTank(int number)
 	{
 		if (number==11)return true;
+		if (number==12)return true;
+		if (number==13)return true;
 		return false;
 	}
 	
@@ -893,12 +895,16 @@ class Tank extends Thread {
 	 * change the tank's status to dead
 	 * and delete the tank
 	 */
-	void dieStatusChange(boolean bulletHit)
+	synchronized void dieStatusChange(boolean bulletHit)
 	{
 		if (this.isShieldOn())return;
-		if (valid>1)
+		if (valid>1&&bulletHit==true)
 		{
 			valid--;
+			if (isPropTank(this.id)&&valid==3)
+			{
+				Props newProp=new Props(this.M);
+			}
 			return;
 		}
 		valid=0;
@@ -907,11 +913,11 @@ class Tank extends Thread {
 		Map.playMusic("blast");
 		player_life=player_life-1;
 		M.deleteTank(this);
-		if (bulletHit&&isPropTank(this.id))
+		if (id!=12&&bulletHit&&isPropTank(this.id))
 		{
 			Props newProp=new Props(this.M);
 		}
-		if (num==10)
+		if (isPlayer())
 		{
 			if (player_life>0)
 				M.NewTank(190,510,6,0,M,10,8,player_life);
@@ -1244,7 +1250,7 @@ class Map extends Frame{
 	Vector<Bullet> BulletLst = new Vector<Bullet>();
 	Vector<Path> SeaCoordinate=new Vector<Path>();
 	MainThread thread;
-	final static int MAXENEMYTANK=20;
+	final static int MAXENEMYTANK=50;
 	volatile int LeftTank = MAXENEMYTANK;
 	volatile boolean bStop;
 	volatile boolean Over,hqDestory;
@@ -1338,7 +1344,7 @@ class Map extends Frame{
 											if (rn>=0.3)
 												NewTank(490,30,cnt);
 											else
-												NewEnemyTank(490,30,9,1,cnt,10,3);
+												NewEnemyTank(490,30,13,1,cnt,10,3);
 											cnt++;
 											break;
 									}
@@ -1348,7 +1354,7 @@ class Map extends Frame{
 											if (rn>=0.3)
 												NewTank(250,30,cnt);
 											else
-												NewEnemyTank(250,30,10,1,cnt,4,3);
+												NewEnemyTank(250,30,12,1,cnt,4,3);
 											cnt++;
 											break;
 									}
@@ -1841,7 +1847,8 @@ class Map extends Frame{
 		}
 	}
 	
-	final static int num10texture[][]={{0,0},{0,0},{1,2},{0,1},{0,2}};
+	final static int id10texture[][]={{0,0},{0,0},{1,2},{0,1},{0,2}};
+	final static int id12texture[][]={{0,0},{0,0},{1,2},{0,1},{0,3}};
 	void paintTank(Graphics g)
 	{
 		String path = "pictures";
@@ -1874,16 +1881,22 @@ class Map extends Frame{
 					}
 					continue;
 				}
-				if(t.id==10)
+				if(t.id==10||t.id==12)
 				{
 					String dir;
 					if (t.tankFlash>Tank.halftankFlashTime)
 					{
-						dir=path+"/"+t.id+num10texture[t.valid][0]+t.dir+".gif";
+						if (t.id==10)
+							dir=path+"/"+t.id+id10texture[t.valid][0]+t.dir+".gif";
+						else
+							dir=path+"/"+(t.id-2)+id12texture[t.valid][0]+t.dir+".gif";
 					}
 					else
 					{
-						dir=path+"/"+t.id+num10texture[t.valid][1]+t.dir+".gif";
+						if (t.id==10)
+							dir=path+"/"+t.id+id10texture[t.valid][1]+t.dir+".gif";
+						else
+							dir=path+"/"+(t.id-2)+id12texture[t.valid][1]+t.dir+".gif";
 					}
 					if (pause==false)t.tankFlashDown();
 					ImageIcon icon=new ImageIcon(dir);
@@ -1891,13 +1904,18 @@ class Map extends Frame{
 					g.drawImage(images, t.x, t.y,40,40,this);
 					continue;
 				}
-				if (t.id==11)
+				if (t.id==11||t.id==13)
 				{
 					String dir;
 					if (t.tankFlash>Tank.halftankFlashTime)
 						dir=path+"/"+t.id+"0"+t.dir+".gif";
 					else
-						dir=path+"/"+t.id+"1"+t.dir+".gif";
+					{
+						if (t.id==13)
+							dir=path+"/"+(t.id-4)+t.dir+".gif";
+						else
+							dir=path+"/"+t.id+"1"+t.dir+".gif";
+					}
 					if (pause==false)t.tankFlashDown();
 					ImageIcon icon=new ImageIcon(dir);
 					Image images=icon.getImage();
@@ -1991,6 +2009,8 @@ class Map extends Frame{
 		vis[x][y]=1;
 		Queue<Path>que=new LinkedList<Path>();
 		que.offer(new Path(x,y));
+		int ind=(int)(Math.random()*300)%3;
+		int tx=Map.hqEndx[ind],ty=Map.hqEndy[ind];
 		int dirs[]={0,1,2,3};
 		while (!que.isEmpty())
 		{
@@ -2005,7 +2025,7 @@ class Map extends Frame{
 				{
 					pre[vx][vy]=new Path(ux,uy);
 					vis[vx][vy]=1;
-					if (nearHQ(vx,vy))
+					if (vx==tx&&vy==ty)
 					{
 						while (vx!=x||vy!=y)
 						{
@@ -2048,18 +2068,27 @@ class Map extends Frame{
 	/*
 	 * map[x][y] is close to the HQ?
 	 */
+	final static int[] hqEndx=new int[]{9,15,12};
+	final static int[] hqEndy=new int[]{24,24,21};
 	final static boolean nearHQ(int x,int y)
 	{
-		if (x==9&&y==24)return true;
-		if (x==15&&y==24)return true;
-		if (y==21&&x==12)return true;
+		for (int i=0;i<3;++i)
+			if (x==hqEndx[i]&&y==hqEndy[i])
+				return true;
 		return false;
 	}
 	
 	final static boolean canDropProp(int x,int y,Map M)
 	{
-		int data=isSteel(isRiver(M.map[y][x]))|isSteel(isRiver(M.map[y+1][x]))|
-				isSteel(isRiver(M.map[y][x+1]))|isSteel(isRiver(M.map[y+1][x+1]));
+		synchronized(M.TankLst)
+		{
+			for (Tank t: M.TankLst)
+				if (t.isPlayer())
+					if (Math.abs(y*20+10-t.x)<40&&Math.abs(x*20+30-t.y)<40)
+						return false;
+		}
+		int data=isSteel(isRiver(M.map[x][y+1]))|isSteel(isRiver(M.map[x+1][y]))|
+				isSteel(isRiver(M.map[x][y+1]))|isSteel(isRiver(M.map[x+1][y+1]));
 		if (data>0)return true;
 		return false;
 	}
@@ -2336,6 +2365,6 @@ class Map extends Frame{
 public class TestMap {
 	final static int freshTime=25;
 	public static void main(String[] args) {
-		Map M = new Map(5);
+		Map M = new Map(10);
 	}
 }
