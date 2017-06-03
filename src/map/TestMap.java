@@ -81,8 +81,7 @@ class Props extends Thread {
 	{
 		valid=true;
 		this.M=M;
-		//number=(int)(Math.random()*6);
-		number=3;
+		number=((int)(Math.random()*600))%6;
 		x=(int)(Math.random()*26);
 		y=(int)(Math.random()*26);
 		froze=(int)(Math.random()*frozeTime)+8000;
@@ -1715,7 +1714,7 @@ class Map extends Frame{
 		for(int i=0;i<26;i++){
 			for(int j=0;j<26;j++){
 				if(map[i][j] != 0 && map[i][j] != 5 &&map[i][j] !=3){
-					if (this.steelFlashMode)
+					if (this.steelFlashMode==true)
 					{
 						if (Map.inHQ(i, j))
 						{
@@ -1746,7 +1745,7 @@ class Map extends Frame{
 				}
 			}
 		}
-		if (this.steelFlashMode)
+		if (this.steelFlashMode==true)
 		{
 			this.steelFlash--;
 			if (this.steelFlash==0)
@@ -1791,7 +1790,7 @@ class Map extends Frame{
 			dir=path+"/over.gif";
 			icon=new ImageIcon(dir);
 			images =icon.getImage();
-			g.drawImage(images, 150, 230, 200, 60,this);
+			g.drawImage(images, 150, 250, 250, 60,this);
 		}
 		paintProp(g);
 		//print();
@@ -2266,14 +2265,14 @@ class Map extends Frame{
 	final static int steelPeriodTime=5;
 	volatile boolean steelFlashMode=false;
 	int steelFlash=steelFlashTime;
-	int steelPeriod=0;
+	volatile int steelPeriod=0;
 	
-	final static int hqPosx[]=new int[]{23,24,25,23,23,24,25};
-	final static int hqPosy[]=new int[]{11,11,12,13,14,14,14};
+	final static int hqPosx[]=new int[]{23,24,25,23,23,23,24,25};
+	final static int hqPosy[]=new int[]{11,11,11,12,13,14,14,14};
 	
 	final static boolean inHQ(int x,int y)
 	{
-		for (int i=0;i<7;++i)
+		for (int i=0;i<8;++i)
 			if (hqPosx[i]==x&&hqPosy[i]==y)
 				return true;
 		return false;
@@ -2282,10 +2281,10 @@ class Map extends Frame{
 	final void steelGuard()
 	{
 		class steelGuardControl extends Thread{
-			boolean alive=true;
-			steelGuardControl(){alive=true;}
+			steelGuardControl(){}
 			public void run()
 			{
+				steelFlashMode=false;
 				steelPeriod=0;
 				try{
 					sleep(steelGuardTime);
@@ -2293,9 +2292,19 @@ class Map extends Frame{
 					System.out.println(e);
 				}
 				steelFlashMode=true;
-				while (steelPeriod<=steelPeriodTime);
-				map[23][11]=map[24][11]=map[25][11]=map[23][12]=map[23][13]
-						=map[23][14]=map[24][14]=map[25][14]=1;
+				while (steelPeriod<=steelPeriodTime)
+				{
+					try{
+						sleep(10);
+					}catch(InterruptedException e){
+						System.out.println(e);
+					}
+				}
+				if (steelFlashMode==true)
+				{
+					map[23][11]=map[24][11]=map[25][11]=map[23][12]=map[23][13]
+							=map[23][14]=map[24][14]=map[25][14]=1;
+				}
 				steelFlashMode=false;
 			}
 		}
@@ -2327,6 +2336,6 @@ class Map extends Frame{
 public class TestMap {
 	final static int freshTime=25;
 	public static void main(String[] args) {
-		Map M = new Map(1);
+		Map M = new Map(5);
 	}
 }
