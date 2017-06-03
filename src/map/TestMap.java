@@ -57,26 +57,44 @@ class MusicPlayer extends Thread
 	}
 }
 
+/*
+ * when prop tank was hit will generate a prop
+ * on map , only one prop exists at the same time
+ */
 class Props extends Thread {
 	/*
 	 * number = 
 	 * 0: shield
+	 * 		get a protect shield for 12s
 	 * 1: steel guard
+	 * 		make the hq from brick to steel
 	 * 2: player_life
+	 * 		player's life +1s
 	 * 3: level up
+	 * 	 	first level up: bullet speed up
+	 * 		second level up: can shoot 2 bullet one time
+	 * 				meanwhile tank change texture
+	 * 		third level up: can use enforced bullet
+	 * 		(this bullet can break steel brick)
+	 * 				meanwhile tank change texture
+	 * 		the next will have no effect
 	 * 4: bomb
+	 * 		kill all the enemy tank on the map
 	 * 5: clock up
+	 * 		make all the enemy tank stop for 15s
 	 */
-	volatile int number,x,y;
-	final static int propFlashTime=10;
+	volatile int number,x,y;//number:prop type;x,y:coordinate
+	final static int propFlashTime=10;//used for controlling prop flash
 	final static int halfPropFlashTime=propFlashTime/2;
-	final static int frozeTime=25000;
-	int froze;
+	final static int frozeTime=25000;//used for controlling prop stay time
+	int froze;//prop stay on the map for froze s
 	int propFlash;
-	volatile boolean valid;
+	volatile boolean valid;//is prop still can be used?
 	
 	Map M;
 	Props(){}
+	
+	//random generate a prop,random type,random coordinate
 	Props(Map M)
 	{
 		valid=true;
@@ -118,6 +136,7 @@ class Props extends Thread {
 		dieStatusChange();
 	}
 	
+	//prop become not valid
 	void dieStatusChange()
 	{
 		if (valid==false)return;
@@ -128,6 +147,7 @@ class Props extends Thread {
 		}
 	}
 	
+	//used for prop flashing
 	void flashDown()
 	{
 		propFlash--;
@@ -135,8 +155,13 @@ class Props extends Thread {
 			propFlash=Props.propFlashTime;
 	}
 	
+	//Tank t use this prop
 	void use(Tank t)
 	{
+		/*
+		 * ClockUp class:
+		 * used for controlling enemy tank stop moving
+		 */
 		class ClockUp extends Thread{
 			public void run()
 			{
@@ -211,6 +236,9 @@ class Tank extends Thread {
 	 * (2)AI tank must wait 400ms to shoot the next bullet 
 	 * after one Bullet hit something or go out of the map
 	 * 
+	 * aiCanNotMove: used for clockUp prop,determine whether the 
+	 * AI can move.
+	 * 
 	 * moveFlag: if move[i]=true means that now the tank is moving 
 	 * towards direction i (used for achieve the effect that shooting
 	 *  while moving)
@@ -220,6 +248,13 @@ class Tank extends Thread {
 	 *  shieldFlash: used for controlling shield flash
 	 *  bornShieldTime(ms):determine the shield time when player is born
 	 *  battleShieldTime(ms):determine the shield time when player eat a shield prop 
+	 *  
+	 *  tanklevel:used for levelUp props,props make player's tank stronger accoring to
+	 *  the current level
+	 *  
+	 *  bulletSpeed:determine the speed of the bullet that the tank shoots.
+	 *  enforcedBullet: determine the bullet type of the tank,if it's enforced
+	 *  if can destroy steel block
 	 *  
 	 *  tankFlashTime/halfTankFlashTime:constant used for special tank flash
 	 *  tankFlash:used for controlling tank flash
@@ -317,6 +352,9 @@ class Tank extends Thread {
 		}
 	}
 	
+	/*
+	 * add protected shield for the tank
+	 */
 	final void shieldModeOn()
 	{
 		class battleShieldModeControl extends Thread{
@@ -335,6 +373,9 @@ class Tank extends Thread {
 		new_t.start();
 	}
 	
+	/*
+	 * to know whether the tank has shield 
+	 */
 	final boolean isShieldOn()
 	{
 		return shieldMode>0;
@@ -347,6 +388,10 @@ class Tank extends Thread {
 			this.shieldFlash=Tank.shieldFlashTime;
 	}
 	
+	/*
+	 * used for special flash tank's flashing effect,
+	 * for example,prop tank
+	 */
 	final void tankFlashDown()
 	{
 		this.tankFlash--;
@@ -354,6 +399,11 @@ class Tank extends Thread {
 			this.tankFlash=Tank.tankFlashTime;
 	}
 	
+	/*
+	 * used for player's tank,if there is a prop
+	 * near the player then player will get the prop
+	 * and use it
+	 */
 	final void pickProps()
 	{
 		Props p=null;
@@ -367,17 +417,18 @@ class Tank extends Thread {
 		if (p!=null)p.use(this);
 	}
 	
+	/*
+	 * add player's life
+	 */
 	final void playerLifeAdd()
 	{
 		this.player_life++;
 	}
-	
+
 	/*
 	 * (non-Javadoc)
 	 * @see java.lang.Thread#run()
-	 * 
-	 * the main thread method
-	 * sleep and move alternatively
+	 * main Thread of a tank
 	 */
 	public void run() 
 	{
@@ -568,6 +619,9 @@ class Tank extends Thread {
 		}
 	}
 	
+	/*
+	 * change the aiCanNotMove;used for ai move controlling
+	 */
 	final static void aiMoveStatusChange(int dir)
 	{
 		aiCanNotMove=aiCanNotMove+dir;
@@ -678,7 +732,7 @@ class Tank extends Thread {
 	}
 	
 	/*
-	 * print the AI's shortest Path to HQ
+	 * print the AI's shortest Path to HQ,used for debugging
 	 */
 	void printPath()
 	{
@@ -982,14 +1036,19 @@ class Tank extends Thread {
 		}
 	}
 
+	/*
+	 * used for player's level up
+	 */
 	void playerLevelUp()
 	{
+		//first make bullet speed faster
 		if (bulletSpeed==Tank.initialBulletSpeed)
 		{
 			tankLevel++;
 			bulletSpeed=Tank.enforcedBulletSpeed;
 			return;
 		}
+		//second make shoot bullet 2
 		if (maxShootLimit==1)
 		{
 			tankLevel++;
@@ -997,6 +1056,7 @@ class Tank extends Thread {
 			shootLimit++;
 			return;
 		}
+		//make bullet enforced
 		if (enforcedBullet==false)
 		{
 			tankLevel++;
@@ -1847,6 +1907,7 @@ class Map extends Frame{
 		}
 	}
 	
+	//used for painting special flash tank
 	final static int id10texture[][]={{0,0},{0,0},{1,2},{0,1},{0,2}};
 	final static int id12texture[][]={{0,0},{0,0},{1,2},{0,1},{0,3}};
 	void paintTank(Graphics g)
@@ -1944,6 +2005,14 @@ class Map extends Frame{
 		}
 	}
 	
+	/*
+	 *  isXXX method
+	 *  if the number n is XXX's code
+	 *  (note : brick is 1,steel is 2,
+	 *  		sea is 3,grass is 4)
+	 *  then return 0
+	 *  else return n
+	 */
 	final static int isGrass(int n)
 	{
 		if (n==4)return 0;
@@ -2236,27 +2305,26 @@ class Map extends Frame{
 				}
 	 }
 	
-	class GameOverTimeCount extends Thread
-	{
-		Map M;
-		GameOverTimeCount(){M=null;}
-		GameOverTimeCount(Map M){this.M=M;}
-		
-		final static int CountTime=5000;
-		public void run()
-		{
-			try
-			{
-				sleep(CountTime);
-			}catch(InterruptedException e){
-				System.out.println(e);
-			}
-			M.bStop=true;
-		}
-	}
-	
 	void gameOver(boolean destory)
 	{
+		class GameOverTimeCount extends Thread
+		{
+			Map M;
+			GameOverTimeCount(){M=null;}
+			GameOverTimeCount(Map M){this.M=M;}
+			
+			final static int CountTime=5000;
+			public void run()
+			{
+				try
+				{
+					sleep(CountTime);
+				}catch(InterruptedException e){
+					System.out.println(e);
+				}
+				M.bStop=true;
+			}
+		}
 		if (Over)
 		{
 			hqDestory=destory|hqDestory;
@@ -2281,6 +2349,11 @@ class Map extends Frame{
 		}
 	}
 	
+	/*
+	 * wrapping method for playing music
+	 * playing music named "Path.wav" in documents
+	 * "music" , Path is the name of the music file
+	 */
 	final static void playMusic(String Path)
 	{
 		MusicPlayer mp=new MusicPlayer(Path);
@@ -2307,6 +2380,10 @@ class Map extends Frame{
 		return false;
 	}
 	
+	/*
+	 * used for steel guard prop,using this prop will make 
+	 * our HQ surrounded with steel block
+	 */
 	final void steelGuard()
 	{
 		class steelGuardControl extends Thread{
@@ -2344,6 +2421,10 @@ class Map extends Frame{
 		new_t.start();
 	}
 	
+	/*
+	 * used for bomb prop,use this prop will kill all the enemy
+	 * tank on the map
+	 */
 	final void killAllEnemyTank()
 	{
 		Tank []enemy_tank=new Tank[Map.MAXENEMYTANK];
