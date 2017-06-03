@@ -1278,7 +1278,7 @@ class Bullet extends Thread
 		new_x2 = (int)Math.floor(1.0*(x-10)/20);
 		new_y1 = (int)Math.ceil(1.0*(y-30)/20);
 		new_y2 = (int)Math.floor(1.0*(y-30)/20);
-		if(new_x1>=0&&new_x1<=25&&new_y1>=0&&new_y1<=25 &&
+		if(new_x1>=0&&new_x1<=26&&new_y1>=0&&new_y1<=26 &&
 				new_x2>=0&&new_x2<=25&&new_y2>=0&&new_y2<=25){
 			if(M.map[new_y2][new_x2] == 2 && this.enforced==false ) return false;
 															  else   return true;
@@ -2149,6 +2149,7 @@ class Map extends Frame{
 	
 	final static boolean canDropProp(int x,int y,Map M)
 	{
+		if (Map.inHQ(x, y))return false;
 		synchronized(M.TankLst)
 		{
 			for (Tank t: M.TankLst)
@@ -2446,6 +2447,6 @@ class Map extends Frame{
 public class TestMap {
 	final static int freshTime=25;
 	public static void main(String[] args) {
-		Map M = new Map(10);
+		Map M = new Map(25);
 	}
 }
