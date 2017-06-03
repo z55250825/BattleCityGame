@@ -81,7 +81,8 @@ class Props extends Thread {
 	{
 		valid=true;
 		this.M=M;
-		number=(int)(Math.random()*6);
+		//number=(int)(Math.random()*6);
+		number=3;
 		x=(int)(Math.random()*26);
 		y=(int)(Math.random()*26);
 		froze=(int)(Math.random()*frozeTime)+8000;
@@ -237,7 +238,7 @@ class Tank extends Thread {
 	int randomStep=MAXSTEP;
 	int nowStep=-1;
 	volatile static int aiCanNotMove=0;
-	final static int aiSleepTime=10000;
+	final static int aiSleepTime=15000;
 	
 	volatile int maxShootLimit=1;
 	volatile int shootLimit=1;
@@ -249,12 +250,14 @@ class Tank extends Thread {
 	final static int halfShieldFlashTime=shieldFlashTime/2;
 	int shieldFlash=shieldFlashTime;
 	final static int bornShieldTime=5000;
-	final static int battleShieldTime=10000;
+	final static int battleShieldTime=12000;
 	
 	final static int initialBulletSpeed=6;
 	final static int enforcedBulletSpeed=8;
 	volatile int bulletSpeed=6;
 	volatile boolean enforcedBullet=false;
+	
+	volatile int tankLevel;
 	
 	final static int tankFlashTime=4;
 	final static int halftankFlashTime=tankFlashTime/2;
@@ -293,6 +296,7 @@ class Tank extends Thread {
 		this.shootLimit=1;
 		this.bulletSpeed=Tank.initialBulletSpeed;
 		this.enforcedBullet=false;
+		this.tankLevel=1;
 		for (int i=0;i<4;++i) moveFlag[i]=false;
 	
 		class bornShieldModeControl extends Thread{
@@ -358,7 +362,7 @@ class Tank extends Thread {
 		{
 			for (Props props : M.props)
 				if (props.valid)
-					if (Math.abs(x-props.x)<2&&Math.abs(y-props.y)<2)
+					if (Math.abs(x-props.y)<40&&Math.abs(y-props.x)<40)
 						p=props;
 		}
 		if (p!=null)p.use(this);
@@ -977,17 +981,20 @@ class Tank extends Thread {
 	{
 		if (bulletSpeed==Tank.initialBulletSpeed)
 		{
+			tankLevel++;
 			bulletSpeed=Tank.enforcedBulletSpeed;
 			return;
 		}
 		if (maxShootLimit==1)
 		{
+			tankLevel++;
 			maxShootLimit++;
 			shootLimit++;
 			return;
 		}
 		if (enforcedBullet==false)
 		{
+			tankLevel++;
 			enforcedBullet=true;
 			return;
 		}
@@ -1216,9 +1223,12 @@ class Bullet extends Thread
 	
 	void dieStatusChange()
 	{
-		valid=0;
-		if (T.isPlayer())Map.playMusic("hit");
-		T.changeShootLimit();
+		synchronized(this)
+		{
+			if (valid!=0&&T.isPlayer())Map.playMusic("hit");
+			if (valid!=0)T.changeShootLimit();
+			valid=0;
+		}
 		M.deleteBullet(this);
 	}
 	
@@ -1316,7 +1326,7 @@ class Map extends Frame{
 							case 0:
 									if(! Tank.overlap(cnt,10,30,TankLst,saints))
 									{
-											if (rn>=0.3)
+											if (rn>=0.8)
 												NewTank(10,30,cnt);
 											else
 												NewEnemyTank(10,30,11,1,cnt,4,3);
@@ -1756,7 +1766,7 @@ class Map extends Frame{
 				dir=path+"/pause.png";
 				icon=new ImageIcon(dir);
 				images=icon.getImage();
-				g.drawImage(images, 210, 250, 70,20,this);
+				g.drawImage(images, 230, 250, 70,20,this);
 			}
 		}
 		else
@@ -1826,7 +1836,7 @@ class Map extends Frame{
 			{
 				if (p.valid==false )continue;
 				if (p.propFlash>=p.halfPropFlashTime)
-					g.drawImage(propImage[p.number], p.x, p.y, 40,40,this);
+					g.drawImage(propImage[p.number], p.y, p.x, 40,40,this);
 				if (pause==false)p.flashDown();
 			}
 		}
@@ -1840,6 +1850,31 @@ class Map extends Frame{
 		{
 			for(Tank t : TankLst){
 				if(t.valid == 0) continue;
+				if(t.isPlayer())
+				{
+					String level="";
+					switch(t.tankLevel){
+						case 2:level="";break;
+						case 3:level="B";break;
+						case 4:level="C";break;
+					}
+					String dir = path + "/" + t.id + t.dir + level+".gif";
+					ImageIcon icon = new ImageIcon(dir);
+					Image images = icon.getImage();
+					g.drawImage(images,t.x, t.y,40, 40, this);
+					if (t.isShieldOn())
+					{
+						if (t.shieldFlash>=Tank.halfShieldFlashTime)
+							dir=path+"/"+"shield0.gif";
+						else
+							dir=path+"/"+"shield1.gif";
+						if (pause==false)t.shieldDown();
+						icon=new ImageIcon(dir);
+						images=icon.getImage();
+						g.drawImage(images, t.x, t.y, 40,40,this);
+					}
+					continue;
+				}
 				if(t.id==10)
 				{
 					String dir;
@@ -1861,7 +1896,7 @@ class Map extends Frame{
 				{
 					String dir;
 					if (t.tankFlash>Tank.halftankFlashTime)
-						dir=path+"/"+t.id+"0"+t.dir+".png";
+						dir=path+"/"+t.id+"0"+t.dir+".gif";
 					else
 						dir=path+"/"+t.id+"1"+t.dir+".gif";
 					if (pause==false)t.tankFlashDown();
@@ -1874,17 +1909,6 @@ class Map extends Frame{
 				ImageIcon icon = new ImageIcon(dir);
 				Image images = icon.getImage();
 				g.drawImage(images,t.x, t.y,40, 40, this);
-				if (t.isPlayer()&&t.isShieldOn())
-				{
-					if (t.shieldFlash>=Tank.halfShieldFlashTime)
-						dir=path+"/"+"shield0.gif";
-					else
-						dir=path+"/"+"shield1.gif";
-					if (pause==false)t.shieldDown();
-					icon=new ImageIcon(dir);
-					images=icon.getImage();
-					g.drawImage(images, t.x, t.y, 40,40,this);
-				}
 			}
 		}
 	}
@@ -2284,20 +2308,19 @@ class Map extends Frame{
 	
 	final void killAllEnemyTank()
 	{
-		Tank []player_tank=new Tank[2];
+		Tank []enemy_tank=new Tank[Map.MAXENEMYTANK];
 		int tot=0;
 		synchronized(TankLst)
 		{
 			for (Tank t : TankLst)
 				if (t.valid>=1)
 				{
-					if (t.isPlayer())player_tank[tot++]=t;
-								else t.dieStatusChange(false); 
+					if (t.isPlayer());
+						else enemy_tank[tot++]=t;
 				}
-			TankLst.clear();
-			for (int i=0;i<tot;++i)
-				TankLst.add(player_tank[i]);
 		}
+		for (int i=0;i<tot;++i)
+			enemy_tank[i].dieStatusChange(false);
 	}
 }
 
