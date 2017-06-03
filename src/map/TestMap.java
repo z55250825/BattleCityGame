@@ -345,6 +345,7 @@ class Tank extends Thread {
 		}
 		if (this.isPlayer())
 		{
+			M.playerLifeCount=this.player_life;
 			this.shieldMode=1;
 			bornShieldModeControl shield=new bornShieldModeControl();
 			Thread new_t=new Thread(shield);
@@ -388,6 +389,7 @@ class Tank extends Thread {
 		bornShieldModeControl shield=new bornShieldModeControl();
 		Thread new_t=new Thread(shield);
 		new_t.start();
+		M.playerLifeCount=this.player_life;
 	}
 	
 	/*
@@ -461,6 +463,7 @@ class Tank extends Thread {
 	final void playerLifeAdd()
 	{
 		this.player_life++;
+		M.playerLifeCount=player_life;
 	}
 
 	/*
@@ -1008,6 +1011,7 @@ class Tank extends Thread {
 		if (this.isPlayer()==false)
 		{
 			M.deadEnemyTank++;
+			System.out.println(M.deadEnemyTank);
 		}
 		if (id!=12&&bulletHit&&isPropTank(this.id))
 		{
@@ -1015,8 +1019,9 @@ class Tank extends Thread {
 		}
 		if (isPlayer())
 		{
+			M.playerLifeCount=player_life;
 			if (player_life>0)
-				M.NewTank(190,510,6,0,M,10,8,player_life);
+				M.NewTank(170,510,6,0,M,10,8,player_life);
 			else
 				M.gameOver(false);
 		}
@@ -1363,6 +1368,10 @@ class Map extends Frame{
 	 */
 	volatile boolean pause;
 	volatile boolean cg=false;
+	volatile boolean cgFlashMode=false;
+	final static int cgFlashTime=1;
+	volatile int cgFlashCnt=0;
+	volatile int cgFlash=0;
 	
 	Vector<Bomb> bombs = new Vector<Bomb>();
 	Vector <Saint> saints = new Vector<Saint>();
@@ -1373,6 +1382,9 @@ class Map extends Frame{
 	
 	volatile int playerLife=3,playerLevel=1;
 	volatile int deadEnemyTank=0;
+	volatile int nowLevel;
+	volatile int notBornedEnemy=MAXENEMYTANK;
+	volatile int playerLifeCount;
 	
 	void clearAll() throws InterruptedException
 	{
@@ -1444,14 +1456,67 @@ class Map extends Frame{
 				icon=new ImageIcon("pictures/prop"+(i+1)+".gif");
 				propImage[i]=icon.getImage();
 			}
+			TestMap.level--;
 			while (!wStop){
-			deadEnemyTank=0;
+			Thread sweep=new Thread(){
+				public void run()
+				{
+					while (cgFlashMode)
+					{
+						try{
+							sleep(10);
+						}catch(InterruptedException e){
+							System.out.println(e);
+						}
+					}
+					try {
+						clearAll();
+					} catch (InterruptedException e1) {
+						e1.printStackTrace();
+					}
+					if (Over==true){TestMap.level=1;}
+						else
+							TestMap.level=(TestMap.level+1)%(TestMap.maxMapNum+1);
+					while(loadMap(TestMap.level)==false)
+						TestMap.level=(TestMap.level+1)%(TestMap.maxMapNum+1);
+					try{
+						sleep(3000);
+					}catch(InterruptedException e){
+						System.out.println(e);
+					}
+					playMusic("start");
+					try{
+						sleep(2000);
+					}catch(InterruptedException e){
+						System.out.println(e);
+					}
+					//System.out.println(TestMap.level);
+					notBornedEnemy=MAXENEMYTANK;
+					Over=false;
+					bStop=false;
+					hqDestory=false;
+					cg=false;
+				}
+			};
+			cg=true;
+			cgFlashMode=true;
+			cgFlashCnt=0;
+			cgFlash=0;
+			sweep.start();
+			while (cg==true)
+			{
+				repaint();
+				try{
+					sleep(TestMap.freshTime);
+				}catch(InterruptedException e){
+					System.out.println(e);
+				}
+			}
 			int new_tank_time = 5*1000,cnt = 11;
 			NewPlayerTank(playerLife,playerLevel);
 			NewTank(10,30,cnt++);
 			NewTank(490,30,cnt++);
 			NewTank(250,30,cnt++);
-			playMusic("start");
 			while(! bStop){
 				repaint();
 					if(LeftTank > 0 && new_tank_time <= 0)
@@ -1536,6 +1601,7 @@ class Map extends Frame{
 			}
 			if (!Over)
 			{
+				nowLevel++;
 				synchronized(TankLst)
 				{
 					for (Tank t:TankLst)
@@ -1547,42 +1613,8 @@ class Map extends Frame{
 							}
 				}
 			}
-			Thread sweep=new Thread(){
-				public void run()
-				{
-					try {
-						clearAll();
-					} catch (InterruptedException e1) {
-						e1.printStackTrace();
-					}
-					if (Over==true)TestMap.level=1;
-						else
-							TestMap.level=(TestMap.level+1)%(TestMap.maxMapNum+1);
-					while(loadMap(TestMap.level)==false)
-						TestMap.level=(TestMap.level+1)%(TestMap.maxMapNum+1);
-					try{
-						sleep(5000);
-					}catch(InterruptedException e){
-						System.out.println(e);
-					}
-					//System.out.println(TestMap.level);
-					Over=false;
-					bStop=false;
-					hqDestory=false;
-					cg=false;
-				}
-			};
-			cg=true;
-			sweep.start();
-			while (cg==true)
-			{
-				repaint();
-				try{
-					sleep(TestMap.freshTime);
-				}catch(InterruptedException e){
-					System.out.println(e);
-				}
-			}
+			else
+				nowLevel=1;
 			}
 		}
 	}
@@ -1777,7 +1809,8 @@ class Map extends Frame{
 		editorMode=false;
 		Over=false;
 		TestMap.level=level;
-		loadMap(level);
+		nowLevel=level;
+		//loadMap(level);
 		this.addWindowListener(new WindowAdapter(){
 			public void windowClosing(WindowEvent e){
 				bStop = true;
@@ -1895,6 +1928,18 @@ class Map extends Frame{
 	final static int seaStreamPeriod=200;
 	int seaStreamState=seaStreamPeriod*2;
 	
+	Image imageBuffer=null;
+	Graphics graImage=null;
+	
+	public void update(Graphics g)
+	{
+		imageBuffer=createImage(this.getWidth(),this.getHeight());
+		graImage=imageBuffer.getGraphics();
+		paint(graImage);
+		graImage.dispose();
+		g.drawImage(imageBuffer, 0, 0, this);
+	}
+	
 	public void paint(Graphics g){
 		super.paint(g);
 		g.setColor(Color.white);
@@ -1915,9 +1960,25 @@ class Map extends Frame{
 			Image images = icon.getImage();
 			for (int i=0;i<26;++i)
 				for (int j=0;j<26;++j)
+					if (i<=cgFlash||25-i<=cgFlash)
 					g.drawImage(images, 10+j*20, 30+i*20, 20, 20,this);
+			cgFlashCnt++;
+			if (cgFlashMode&&cgFlashCnt==cgFlashTime)
+			{
+				cgFlashCnt=0;
+				cgFlash++;
+				if (cgFlash==14)
+					cgFlashMode=false;
+			}
+			if (cgFlashMode)return;
+			g.setFont(new Font("Lithos",Font.BOLD,24));
+			g.setColor(Color.BLACK);
+			g.drawString("STAGE "+nowLevel, 210, 270);
 			return;
 		}
+		ImageIcon bg=new ImageIcon("pictures/bghuise.png");
+		Image bgimg=bg.getImage();
+		g.drawImage(bgimg, 530, 30, 130,530,this);
 		for (Path Sea : SeaCoordinate)
 		{
 			String dir;
@@ -2023,6 +2084,9 @@ class Map extends Frame{
 			g.drawImage(images, 150, 250, 250, 60,this);
 		}
 		paintProp(g);
+		paintEnemy(g);
+		paintPlayerLife(g);
+		paintMapState(g);
 		//print();
 	}
 	
@@ -2069,6 +2133,44 @@ class Map extends Frame{
 				if (pause==false)p.flashDown();
 			}
 		}
+	}
+	
+	
+	//650,560 10~530 30~550
+	void paintEnemy(Graphics g)
+	{
+		ImageIcon icon=new ImageIcon("pictures/enemy.png");
+		Image image=icon.getImage();
+		int x=50,y=570;
+		for (int i=0;i<notBornedEnemy;++i)
+		{
+			g.drawImage(image, y, x, 20,20,this);
+			if (y==570)y+=20;
+					else {y=570;x+=20;}
+		}
+	}
+	
+	void paintPlayerLife(Graphics g)
+	{
+		ImageIcon icon=new ImageIcon("pictures/1p.png");
+		Image image=icon.getImage();
+		g.drawImage(image, 570, 370, 40,20,this);
+		icon=new ImageIcon("pictures/player.png");
+		image=icon.getImage();
+		g.drawImage(image, 570, 395, 20,20,this);
+		g.setFont(new Font("Lithos",Font.BOLD,24));
+		g.setColor(Color.BLACK);
+		g.drawString(""+this.playerLifeCount, 600, 415);
+	}
+	
+	void paintMapState(Graphics g)
+	{
+		ImageIcon icon=new ImageIcon("pictures/flag.png");
+		Image image=icon.getImage();
+		g.drawImage(image, 570, 450, 40, 40,this);
+		g.setFont(new Font("Lithos",Font.BOLD,20));
+		g.setColor(Color.BLACK);
+		g.drawString(""+TestMap.level, 580, 515);
 	}
 	
 	//used for painting special flash tank
@@ -2363,7 +2465,7 @@ class Map extends Frame{
 	void newTank(int player_life,int level)
 	{
 		//NewTank(190,510,6,0,Map.this,cnt++,8,3);
-		Tank new_tank=new Tank(190,510,6,0,this,10,8,player_life,level);
+		Tank new_tank=new Tank(170,510,6,0,this,10,8,player_life,level);
 		if (bStop)return;
 		synchronized(TankLst)
 		{
@@ -2375,7 +2477,7 @@ class Map extends Frame{
 
 	void NewPlayerTank(int player_life,int level)
 	{
-		Saint s=new Saint(190,510);
+		Saint s=new Saint(170,510);
 		synchronized(saints)
 		{
 			saints.add(s);
@@ -2421,6 +2523,7 @@ class Map extends Frame{
 		NewTank1 new_n=new NewTank1(x,y,cnt,s);
 		Thread new_t=new Thread(new_n);
 		new_t.start();
+		notBornedEnemy--;
 	}
 	
 	void NewTank(int x, int y, int id, int dir, Map M, int num, int speed, int player_life)
@@ -2450,6 +2553,7 @@ class Map extends Frame{
 		NewTank1 new_n=new NewTank1(x,y,id,dir,M,num,speed,player_life,s);
 		Thread new_t=new Thread(new_n);
 		new_t.start();
+		notBornedEnemy--;
 	}
 	
 	/*
@@ -2643,11 +2747,19 @@ class Map extends Frame{
 }
 
 public class TestMap {
+	static boolean editorMode=false;//determine the mode
+	volatile static int level=14;//determine the level to play first
 	final static int maxMapNum=12;
 	final static int freshTime=25;
 	final static int stdTankSpeed[]=new int[]{0,0,0,0,0,0,8,4,0,10,4,4,4,10};
-	volatile static int level;
 	public static void main(String[] args) {
-		Map M = new Map(1);
+		if (editorMode)
+		{
+			Map M = new Map();
+		}
+		else
+		{
+			Map M = new Map(level);
+		}
 	}
 }
