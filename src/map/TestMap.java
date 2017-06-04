@@ -329,6 +329,8 @@ class Tank extends Thread {
 		dy=new int[]{-speed,speed,0,0};
 		this.shootLimit=1;
 		this.bulletSpeed=Tank.initialBulletSpeed;
+		if (this.id==8||this.id==14)
+			this.bulletSpeed=Tank.enforcedBulletSpeed;
 		this.enforcedBullet=false;
 		this.tankLevel=1;
 		for (int i=0;i<4;++i) moveFlag[i]=false;
@@ -983,6 +985,7 @@ class Tank extends Thread {
 		if (number==11)return true;
 		if (number==12)return true;
 		if (number==13)return true;
+		if (number==14)return true;
 		return false;
 	}
 	
@@ -1011,7 +1014,6 @@ class Tank extends Thread {
 		if (this.isPlayer()==false)
 		{
 			M.deadEnemyTank++;
-			System.out.println(M.deadEnemyTank);
 		}
 		if (id!=12&&bulletHit&&isPropTank(this.id))
 		{
@@ -1385,6 +1387,8 @@ class Map extends Frame{
 	volatile int nowLevel;
 	volatile int notBornedEnemy=MAXENEMYTANK;
 	volatile int playerLifeCount;
+	final static int propTankNum=8;
+	volatile int propTank=0;
 	
 	void clearAll() throws InterruptedException
 	{
@@ -1492,6 +1496,8 @@ class Map extends Frame{
 					}
 					//System.out.println(TestMap.level);
 					notBornedEnemy=MAXENEMYTANK;
+					propTank=0;
+					deadEnemyTank=0;
 					Over=false;
 					bStop=false;
 					hqDestory=false;
@@ -1512,7 +1518,7 @@ class Map extends Frame{
 					System.out.println(e);
 				}
 			}
-			int new_tank_time = 5*1000,cnt = 11;
+			int new_tank_time = 4*1000,cnt = 11;
 			NewPlayerTank(playerLife,playerLevel);
 			NewTank(10,30,cnt++);
 			NewTank(490,30,cnt++);
@@ -1521,7 +1527,7 @@ class Map extends Frame{
 				repaint();
 					if(LeftTank > 0 && new_tank_time <= 0)
 					{
-						new_tank_time = 5*1000;
+						new_tank_time = 4*1000;
 						double rn=Math.random();
 						switch(LeftTank%3)
 						{
@@ -1529,43 +1535,47 @@ class Map extends Frame{
 							case 0:
 									if(! Tank.overlap(cnt,10,30,TankLst,saints))
 									{
-											if (rn>=0.8)
+											/*if (rn>=0.8)
 												NewTank(10,30,cnt);
 											else
-												NewEnemyTank(10,30,11,1,cnt,4,3);
+												NewEnemyTank(10,30,11,1,cnt,4,3);*/
+											NewEnemyTank(0,cnt);
 											cnt++;
 											break;					
 									}
 							case 1:
 									if(! Tank.overlap(cnt,490,30,TankLst,saints))
 									{
-											if (rn>=0.3)
+											/*if (rn>=0.3)
 												NewTank(490,30,cnt);
 											else
-												NewEnemyTank(490,30,13,1,cnt,10,3);
+												NewEnemyTank(490,30,13,1,cnt,10,3);*/
+											NewEnemyTank(2,cnt);
 											cnt++;
 											break;
 									}
 							case 2:
 									if(! Tank.overlap(cnt,250,30,TankLst,saints))
 									{
+										/*
 											if (rn>=0.3)
 												NewTank(250,30,cnt);
 											else
-												NewEnemyTank(250,30,12,1,cnt,4,3);
+												NewEnemyTank(250,30,12,1,cnt,4,3);*/
+											NewEnemyTank(1,cnt);
 											cnt++;
 											break;
 									}
 							default:
 								if(!Tank.overlap(cnt,10,30,TankLst,saints))
 								{
-										NewTank(10,30,cnt);
+										NewEnemyTank(0,cnt);
 										cnt++;
 										break;					
 								}
-								if(!Tank.overlap(cnt,24*20+10,30,TankLst,saints))
+								if(!Tank.overlap(cnt,490,30,TankLst,saints))
 								{
-										NewTank(24*20+10,30,cnt);
+										NewEnemyTank(2,cnt);
 										cnt++;
 										break;
 								}
@@ -1576,11 +1586,6 @@ class Map extends Frame{
 					if (pause==false)new_tank_time -= TestMap.freshTime;
 				}catch(InterruptedException e){
 					System.out.println(e);
-				}
-				int tanknum;
-				synchronized(TankLst)
-				{
-					tanknum=TankLst.size();
 				}
 				if (deadEnemyTank==Map.MAXENEMYTANK)
 				{
@@ -2249,6 +2254,19 @@ class Map extends Frame{
 					g.drawImage(images, t.x, t.y,40,40,this);
 					continue;
 				}
+				if (t.id==14)
+				{
+					String dir;
+					if (t.tankFlash>Tank.halftankFlashTime)
+						dir=path+"/"+t.id+t.dir+".png";
+					else
+						dir=path+"/"+(t.id-6)+t.dir+".gif";
+					if (pause==false)t.tankFlashDown();
+					ImageIcon icon=new ImageIcon(dir);
+					Image images=icon.getImage();
+					g.drawImage(images, t.x, t.y,40,40,this);
+					continue;
+				}
 				String dir = path + "/" + t.id + t.dir + ".gif";
 				ImageIcon icon = new ImageIcon(dir);
 				Image images = icon.getImage();
@@ -2496,6 +2514,32 @@ class Map extends Frame{
 	{
 		NewTank(x,y,id,dir,this,num,speed,player_life);
 		LeftTank--;
+	}
+	
+	//10,250,490,30
+	final static int enemyPosition[]=new int[]{10,250,490};
+	final static int enemySpeed[]=new int[]{0,0,0,0,0,0,0,4,4,10,4,4,4,10,4};
+	void NewEnemyTank(int positionId,int id,int num)
+	{
+		if (Tank.isPropTank(id))propTank++;
+		int x=enemyPosition[positionId],y=30;
+		NewEnemyTank(x,y,id,1,num,enemySpeed[id],3);
+	}
+	
+	void NewEnemyTank(int positionId,int num)
+	{
+		if (propTank<propTankNum)
+		{
+			int x=(int)(Math.random()*8);
+			x+=7;if (x==15)x--;
+			NewEnemyTank(positionId,x,num);
+		}
+		else
+		{
+			int x=(int)(Math.random()*4);
+			x+=7;if (x==11)x--;
+			NewEnemyTank(positionId,x,num);
+		}
 	}
 	
 	void NewTank(int x,int y,int cnt)
@@ -2748,10 +2792,9 @@ class Map extends Frame{
 
 public class TestMap {
 	static boolean editorMode=false;//determine the mode
-	volatile static int level=14;//determine the level to play first
-	final static int maxMapNum=12;
+	volatile static int level=1;//determine the level to play first
+	final static int maxMapNum=16;
 	final static int freshTime=25;
-	final static int stdTankSpeed[]=new int[]{0,0,0,0,0,0,8,4,0,10,4,4,4,10};
 	public static void main(String[] args) {
 		if (editorMode)
 		{
