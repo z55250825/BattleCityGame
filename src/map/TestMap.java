@@ -1390,6 +1390,13 @@ class Map extends Frame{
 	final static int propTankNum=8;
 	volatile int propTank=0;
 	
+	volatile boolean menuMode=false;
+	
+	
+	final static int selectFlashTime=6;
+	final static int halfSelectFlashTime=selectFlashTime/2;
+	volatile int selectFlash=selectFlashTime;
+	
 	void clearAll() throws InterruptedException
 	{
 		synchronized(TankLst)
@@ -1423,77 +1430,35 @@ class Map extends Frame{
 	}
 	
 	class MainThread extends Thread {
-		public void run(){
-			/*
-			 * editor mode on
-			 * Map editor 
-			 */
-			if (editorMode==true)
-			{
-				while (!bStop)
-				{
-					repaint();
-					try{
-						sleep(TestMap.freshTime);
-					}catch(InterruptedException e){
-						System.out.println(e);
-					}
-				}
-				return;
-			}
-			
-			ImageIcon icon = new ImageIcon();
-			for (int i=0;i<8;i++)
-			{
-				icon=new ImageIcon("pictures/blast"+(i+1)+".gif");
-				blastImage[i]=icon.getImage();
-			}//Initialize blast images
-			
-			for (int i=0;i<4;i++)
-			{
-				icon=new ImageIcon("pictures/born"+(i+1)+".gif");
-				bornImage[i]=icon.getImage(); 
-			}//Initialize born images
-			
-			for (int i=0;i<6;i++)
-			{
-				icon=new ImageIcon("pictures/prop"+(i+1)+".gif");
-				propImage[i]=icon.getImage();
-			}
-			TestMap.level--;
-			while (!wStop){
+		
+		void playCg()
+		{
 			Thread sweep=new Thread(){
 				public void run()
 				{
 					while (cgFlashMode)
 					{
-						try{
-							sleep(10);
-						}catch(InterruptedException e){
-							System.out.println(e);
-						}
+						try{sleep(10);}
+						catch(InterruptedException e){System.out.println(e);}
 					}
-					try {
-						clearAll();
-					} catch (InterruptedException e1) {
-						e1.printStackTrace();
-					}
+					
+					try {clearAll();} 
+					catch (InterruptedException e1) {e1.printStackTrace();}
+					
 					if (Over==true){TestMap.level=1;}
-						else
-							TestMap.level=(TestMap.level+1)%(TestMap.maxMapNum+1);
+						else TestMap.level=(TestMap.level+1)%(TestMap.maxMapNum+1);
+					
 					while(loadMap(TestMap.level)==false)
 						TestMap.level=(TestMap.level+1)%(TestMap.maxMapNum+1);
+					
 					try{
 						sleep(3000);
-					}catch(InterruptedException e){
-						System.out.println(e);
-					}
-					playMusic("start");
-					try{
+						playMusic("start");
 						sleep(2000);
 					}catch(InterruptedException e){
 						System.out.println(e);
 					}
+					
 					//System.out.println(TestMap.level);
 					notBornedEnemy=MAXENEMYTANK;
 					propTank=0;
@@ -1518,65 +1483,108 @@ class Map extends Frame{
 					System.out.println(e);
 				}
 			}
-			int new_tank_time = 4*1000,cnt = 11;
-			NewPlayerTank(playerLife,playerLevel);
-			NewTank(10,30,cnt++);
-			NewTank(490,30,cnt++);
-			NewTank(250,30,cnt++);
-			while(! bStop){
-				repaint();
+		}
+		
+		public void run(){
+			/*
+			 * editor mode on
+			 * Map editor 
+			 */
+			
+			ImageIcon icon = new ImageIcon();
+			for (int i=0;i<8;i++)
+			{
+				icon=new ImageIcon("pictures/blast"+(i+1)+".gif");
+				blastImage[i]=icon.getImage();
+			}//Initialize blast images
+			
+			for (int i=0;i<4;i++)
+			{
+				icon=new ImageIcon("pictures/born"+(i+1)+".gif");
+				bornImage[i]=icon.getImage(); 
+			}//Initialize born images
+			
+			for (int i=0;i<6;i++)
+			{
+				icon=new ImageIcon("pictures/prop"+(i+1)+".gif");
+				propImage[i]=icon.getImage();
+			}
+			TestMap.level--;
+			menuMode=true;
+			while (!wStop)
+			{
+				boolean clearLastPlay=false;
+				while (menuMode==true)
+				{
+					repaint();
+					if (clearLastPlay==false)
+					{
+						try {
+							clearAll();
+						} catch (InterruptedException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+						clearLastPlay=true;
+					}
+				}
+				if (editorMode==true)
+				{
+					mapEditorInitialize();
+					while (editorMode==true)
+					{
+						repaint();
+						try{
+							sleep(TestMap.freshTime);
+						}catch(InterruptedException e){
+							System.out.println(e);
+						}
+					}
+					continue;
+				}
+				playCg();
+				int new_tank_time = 4*1000,cnt = 11;
+				
+				NewPlayerTank(playerLife,playerLevel);
+				NewEnemyTank(0,cnt++);
+				NewEnemyTank(1,cnt++);
+				NewEnemyTank(2,cnt++);
+				
+				while(! bStop)
+				{
+					repaint();
 					if(LeftTank > 0 && new_tank_time <= 0)
 					{
 						new_tank_time = 4*1000;
-						double rn=Math.random();
 						switch(LeftTank%3)
 						{
-							//Tank new_tank = new Tank(x,y,7,1,this,cnt,4,3);
 							case 0:
 									if(! Tank.overlap(cnt,10,30,TankLst,saints))
 									{
-											/*if (rn>=0.8)
-												NewTank(10,30,cnt);
-											else
-												NewEnemyTank(10,30,11,1,cnt,4,3);*/
-											NewEnemyTank(0,cnt);
-											cnt++;
+											NewEnemyTank(0,cnt++);
 											break;					
 									}
 							case 1:
 									if(! Tank.overlap(cnt,490,30,TankLst,saints))
 									{
-											/*if (rn>=0.3)
-												NewTank(490,30,cnt);
-											else
-												NewEnemyTank(490,30,13,1,cnt,10,3);*/
-											NewEnemyTank(2,cnt);
-											cnt++;
+											NewEnemyTank(2,cnt++);
 											break;
 									}
 							case 2:
 									if(! Tank.overlap(cnt,250,30,TankLst,saints))
 									{
-										/*
-											if (rn>=0.3)
-												NewTank(250,30,cnt);
-											else
-												NewEnemyTank(250,30,12,1,cnt,4,3);*/
-											NewEnemyTank(1,cnt);
-											cnt++;
+											NewEnemyTank(1,cnt++);
 											break;
 									}
 							default:
 								if(!Tank.overlap(cnt,10,30,TankLst,saints))
 								{
-										NewEnemyTank(0,cnt);
-										cnt++;
+										NewEnemyTank(0,cnt++);
 										break;					
 								}
 								if(!Tank.overlap(cnt,490,30,TankLst,saints))
 								{
-										NewEnemyTank(2,cnt);
-										cnt++;
+										NewEnemyTank(2,cnt++);
 										break;
 								}
 						}
@@ -1594,7 +1602,7 @@ class Map extends Frame{
 						public void run()
 						{
 							try{
-								sleep(8000);
+								sleep(6000);
 							}catch(InterruptedException e){
 								System.out.println(e);
 							}
@@ -1604,6 +1612,7 @@ class Map extends Frame{
 					gameClear.start();
 				}
 			}
+				
 			if (!Over)
 			{
 				nowLevel++;
@@ -1611,7 +1620,7 @@ class Map extends Frame{
 				{
 					for (Tank t:TankLst)
 						if (t.valid!=0)
-							if (t.num==10)
+							if (t.isPlayer())
 							{
 								playerLife=t.player_life;
 								playerLevel=t.tankLevel;
@@ -1619,7 +1628,13 @@ class Map extends Frame{
 				}
 			}
 			else
-				nowLevel=1;
+				{
+					nowLevel=1;
+					playerLife=3;
+					playerLevel=1;
+					TestMap.level=0;
+					menuMode=true;
+				}
 			}
 		}
 	}
@@ -1652,8 +1667,10 @@ class Map extends Frame{
 	/*
 	 * if use Map() then map editor mode
 	 */
-	Map(){
+	void mapEditorInitialize()
+	{
 		wStop=false;
+		bStop=false;
 		pause=false;
 		editorMode=true;
 		Over=false;
@@ -1667,24 +1684,6 @@ class Map extends Frame{
 		map[24][12]=map[24][13]=map[25][12]=map[25][13]=5;
 		map[23][11]=map[24][11]=map[25][11]=map[23][12]=map[23][13]
 				=map[23][14]=map[24][14]=map[25][14]=1;
-		this.addWindowListener(new WindowAdapter(){
-			public void windowClosing(WindowEvent e){
-				bStop = true;
-				System.exit(0);
-			}
-		});
-		
-		this.addKeyListener(new KeyAdapter(){
-			public void keyPressed(KeyEvent e){
-				editorEvent(e.getKeyCode());
-			}
-		});
-		
-		this.setSize(650, 560);
-		this.setBackground(Color.black);
-		this.setVisible(true);
-		thread=new MainThread();
-		thread.start();
 	}
 	
 	/*
@@ -1734,6 +1733,11 @@ class Map extends Frame{
 		{
 			editorChangeState();
 			return;
+		}
+		if (KeyboardCode==KeyEvent.VK_ESCAPE)
+		{
+			menuMode=true;
+			editorMode=false;
 		}
 	}
 	
@@ -1806,6 +1810,31 @@ class Map extends Frame{
 		}catch(IOException e){
 			System.out.print(e);
 		}
+		TestMap.level=-1;
+	}
+	
+	void menuEvent(int keyboardCode)
+	{
+		if (keyboardCode==KeyEvent.VK_UP||
+			keyboardCode==KeyEvent.VK_DOWN)
+		{
+			editorMode=!editorMode;
+			return;
+		}
+		if (keyboardCode==KeyEvent.VK_ESCAPE)
+		{
+			wStop=true;
+			bStop=true;
+			editorMode=false;
+			menuMode=false;
+			System.exit(0);
+		}
+		if (keyboardCode==KeyEvent.VK_SPACE)
+		{
+			playerLife=3;
+			playerLevel=1;
+			menuMode=false;
+		}
 	}
 	
 	Map(int level){
@@ -1813,6 +1842,7 @@ class Map extends Frame{
 		pause=false;
 		editorMode=false;
 		Over=false;
+		menuMode=true;
 		TestMap.level=level;
 		nowLevel=level;
 		//loadMap(level);
@@ -1820,6 +1850,8 @@ class Map extends Frame{
 			public void windowClosing(WindowEvent e){
 				bStop = true;
 				wStop = true;
+				Over=true;
+				menuMode=false;
 				System.exit(0);
 			}
 		});
@@ -1829,8 +1861,26 @@ class Map extends Frame{
 		this.addKeyListener(new KeyAdapter(){
 			public void keyPressed(KeyEvent e)
 			{
+				if (menuMode==true)
+				{
+					menuEvent(e.getKeyCode());
+					return;
+				}
+				if (editorMode==true)
+				{
+					editorEvent(e.getKeyCode());
+					return;
+				}
 				if (!Over)
 				{
+					if (e.getKeyCode()==KeyEvent.VK_ESCAPE)
+					{
+						menuMode=true;
+						Over=true;
+						TestMap.level=0;
+						bStop=true;
+						return;
+					}
 					if (e.getKeyCode()==KeyEvent.VK_P)
 					{
 						pause=!pause;
@@ -1841,7 +1891,7 @@ class Map extends Frame{
 					{
 						for (Tank tank:TankLst)
 						{
-							if (tank.num==10)
+							if (tank.isPlayer())
 								tank.player_move(e.getKeyCode());
 						}
 					}
@@ -1856,7 +1906,7 @@ class Map extends Frame{
 					{
 						for (Tank tank:TankLst)
 						{
-							if (tank.num==10)
+							if (tank.isPlayer())
 								tank.player_stopMove(e.getKeyCode());
 						}
 					}
@@ -1952,6 +2002,30 @@ class Map extends Frame{
 		g.drawLine(10, 30, 10, 550);
 		g.drawLine(530, 30, 530, 550);
 		g.drawLine(10, 550, 530, 550);
+		if (menuMode==true)
+		{
+			ImageIcon icon=new ImageIcon("pictures/battlecity.png");
+			Image image=icon.getImage();
+			g.drawImage(image, 50, 70, 440, 160,this);
+			icon=new ImageIcon("pictures/game.png");
+			image=icon.getImage();
+			g.drawImage(image,210 , 310,120 ,20, this);
+			icon=new ImageIcon("pictures/mapeditor.png");
+			image=icon.getImage();
+			g.drawImage(image, 210, 370,120,25 ,this);
+			if (selectFlash>=halfSelectFlashTime)
+				icon=new ImageIcon("pictures/select.png");
+			else
+				icon=new ImageIcon("pictures/selectB.png");
+			selectFlash--;
+			if (selectFlash<0)selectFlash=selectFlashTime;
+			image=icon.getImage();
+			if (editorMode==true)
+				g.drawImage(image, 150, 360, 30,35,this);
+			else
+				g.drawImage(image, 150, 300, 30,35,this);
+			return;
+		}
 		if (editorMode==true)
 		{
 			editorPaint(g);
@@ -2791,18 +2865,10 @@ class Map extends Frame{
 }
 
 public class TestMap {
-	static boolean editorMode=false;//determine the mode
 	volatile static int level=1;//determine the level to play first
 	final static int maxMapNum=16;
 	final static int freshTime=25;
 	public static void main(String[] args) {
-		if (editorMode)
-		{
-			Map M = new Map();
-		}
-		else
-		{
 			Map M = new Map(level);
-		}
 	}
 }
